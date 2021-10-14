@@ -3,7 +3,6 @@
 # XCode specifics
 *.xcuserstate
 xcuserdata/
-p44mmcd.xcodeproj/project.xcworkspace/xcshareddata/p44maintd.xcscmblueprint
 
 # Autotools specifics
 *.o
