@@ -7,7 +7,7 @@ bin_PROGRAMS = p44mbutil
 
 else
 
-bin_PROGRAMS = p44mbcd p44mbutil
+bin_PROGRAMS = kksdcmd p44mbutil
 
 endif
 
@@ -169,26 +169,26 @@ LVGL_FLAGS = \
 
 
 
-# p44mbcd
+# kksdcmd
 
 if !P44_BUILD_WIN
 
 if DEBUG
-p44mbcd_DEBUG = -D DEBUG=1
+kksdcmd_DEBUG = -D DEBUG=1
 endif
 
 if P44_BUILD_OW
-p44mbcd_PLATFORM = -D P44_BUILD_OW=1
+kksdcmd_PLATFORM = -D P44_BUILD_OW=1
 endif
 
 
 # main
 
-p44mbcd_LDADD = ${JSONC_LIBS} ${LIBMODBUS_LIBS} ${PTHREAD_LIBS} ${SQLITE3_LIBS} $(PNG_LIBS)
-p44mbcd_EXTRACFLAGS = -D NO_SSL_DL=1
+kksdcmd_LDADD = ${JSONC_LIBS} ${LIBMODBUS_LIBS} ${PTHREAD_LIBS} ${SQLITE3_LIBS} $(PNG_LIBS)
+kksdcmd_EXTRACFLAGS = -D NO_SSL_DL=1
 
 
-p44mbcd_CPPFLAGS = \
+kksdcmd_CPPFLAGS = \
   -I ${srcdir}/src/p44utils \
   -I ${srcdir}/src \
   -I ${srcdir}/src/p44utils/thirdparty/civetweb \
@@ -199,13 +199,13 @@ p44mbcd_CPPFLAGS = \
   ${PNG_CFLAGS} \
   ${UBUS_FLAGS} \
   ${LVGL_FLAGS} \
-  ${p44mbcd_EXTRACFLAGS} \
-  ${p44mbcd_PLATFORM} \
-  ${p44mbcd_DEBUG}
+  ${kksdcmd_EXTRACFLAGS} \
+  ${kksdcmd_PLATFORM} \
+  ${kksdcmd_DEBUG}
 
 
 
-p44mbcd_SOURCES = \
+kksdcmd_SOURCES = \
   ${UBUS_SOURCES} \
   ${LIBMODBUS_SOURCES} \
   ${LVGL_SOURCES} \
@@ -266,6 +266,8 @@ p44mbcd_SOURCES = \
   src/p44utils/timeutils.hpp \
   src/p44utils/utils.cpp \
   src/p44utils/utils.hpp \
+  src/p44utils/valueanimator.cpp \
+  src/p44utils/valueanimator.hpp \
   src/p44utils/extutils.cpp \
   src/p44utils/extutils.hpp \
   src/p44utils/thirdparty/civetweb/civetweb.c \
@@ -277,7 +279,7 @@ p44mbcd_SOURCES = \
   src/p44utils/thirdparty/civetweb/openssl_hostname_validation.inl \
   src/p44utils/p44utils_common.hpp \
   src/p44utils_config.hpp \
-  src/p44mbcd_main.cpp
+  src/kksdcmd_main.cpp
 
 endif
 
@@ -358,6 +360,10 @@ p44mbutil_SOURCES = \
   src/p44utils/modbus.hpp \
   src/p44utils/utils.cpp \
   src/p44utils/utils.hpp \
+  src/p44utils/valueanimator.cpp \
+  src/p44utils/valueanimator.hpp \
+  src/p44utils/extutils.cpp \
+  src/p44utils/extutils.hpp \
   src/p44utils/p44utils_common.hpp \
   src/p44utils_config.hpp \
   src/p44mbutil_main.cpp
