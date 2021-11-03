@@ -28,10 +28,7 @@
 #define REGISTER_FIRST 100
 #define REGISTER_LAST 199
 
-
-#define P44_EXIT_FIRMWAREUPGRADE 3 // request firmware upgrade, platform restart
-
-#define MAINSCRIPT_FILE_NAME "mainscript.txt"
+#define MAINSCRIPT_DEFAULT_FILE_NAME "mainscript.txt"
 
 using namespace p44;
 using namespace P44Script;
@@ -48,7 +45,7 @@ static const struct blobmsg_policy kksmbcapi_policy[] = {
   { .name = "method", .type = BLOBMSG_TYPE_STRING },
   { .name = NULL, .type = BLOBMSG_TYPE_UNSPEC },
 };
-#endif
+#endif // ENABLE_UBUS
 
 
 #if ENABLE_P44SCRIPT && ENABLE_UBUS && TO_BE_DONE
@@ -189,7 +186,7 @@ class KksDcmD : public CmdLineApp
   #if ENABLE_UBUS
   // ubus API
   UbusServerPtr mUbusApiServer; ///< ubus API for openwrt web interface
-  #endif
+  #endif // ENABLE_UBUS
 
   // modbus
   ModbusSlavePtr modBusSlave; ///< modbus slave
@@ -198,10 +195,13 @@ class KksDcmD : public CmdLineApp
 
   // app
   bool mActive;
-  ScriptMainContextPtr mScriptMainContext;
 
+  #if ENABLE_P44SCRIPT
   // scripting
+  string mMainScriptFn; ///< filename for the main script
   ScriptSource mMainScript;
+  ScriptMainContextPtr mScriptMainContext;
+  #endif // ENABLE_P44SCRIPT
 
 public:
 
@@ -227,6 +227,9 @@ public:
       { 0  , "bytetime",        true,  "time;custom time per byte in nS" },
       { 0  , "slave",           true,  "slave;use this slave by default (0: act as master)" },
       { 0  , "debugmodbus",     false, "enable libmodbus debug messages to stderr" },
+      #if ENABLE_P44SCRIPT
+      { 0  , "mainscript",     true,  "p44scriptfile;the main script to run after startup" },
+      #endif
       #if ENABLE_UBUS
       { 0  , "ubusapi",         false, "enable ubus API" },
       #endif
@@ -252,7 +255,7 @@ public:
     if (getOption("ubusapi")) {
       initUbusApi();
     }
-    #endif
+    #endif // ENABLE_UBUS
 
     // app now ready to run
     return run();
@@ -269,8 +272,8 @@ public:
 
   void initUbusApi()
   {
-    mUbusApiServer = UbusServerPtr(new UbusServer(MainLoop::currentMainLoop()));
-    UbusObjectPtr u = new UbusObject("kksdcmd", boost::bind(&P44mbcd::ubusApiRequestHandler, this, _1, _2, _3));
+    mUbusApiServer = UbusServerPtr(new UbusServer());
+    UbusObjectPtr u = new UbusObject("kksdcmd", boost::bind(&KksDcmD::ubusApiRequestHandler, this, _1, _2, _3));
     u->addMethod("log", logapi_policy);
     u->addMethod("api", kksmbcapi_policy);
     u->addMethod("quit");
@@ -298,9 +301,13 @@ public:
         ans->add("char", JsonObject::newInt64(cursorP->charpos()));
       }
     }
-    aUbusRequest->sendResponse(ans);
+    // a script exec response is always a "result" at the API level
+    // (differentiating between error-type and non-error-type script results at a higher level)
+    JsonObjectPtr msg = JsonObject::newObj();
+    msg->add("result", ans);
+    aUbusRequest->sendResponse(msg);
   }
-  #endif ENABLE_P44SCRIPT
+  #endif // ENABLE_P44SCRIPT
 
 
   void ubusApiRequestHandler(UbusRequestPtr aUbusRequest, const string aMethod, JsonObjectPtr aJsonRequest)
@@ -394,18 +401,23 @@ public:
         if (aJsonRequest->get("mainscript", subsys)) {
           if (subsys->get("execcode", o)) {
             // direct execution of a script command line in the common main/initscript context
-            ScriptSource src(sourcecode+regular+keepvars+concurrently+floatingGlobs, "execcode");
+            ScriptSource src(sourcecode+regular+keepvars+concurrently+ephemeralSource, "execcode");
             src.setSource(o->stringValue());
             src.setSharedMainContext(mScriptMainContext);
             src.run(inherit, boost::bind(&KksDcmD::scriptExecHandler, this, aUbusRequest, _1));
             return;
           }
           bool newCode = false;
+          bool execaction = false;
           if (subsys->get("stop", o) && o->boolValue()) {
             // stop
             mScriptMainContext->abort(stopall);
+            execaction = true;
           }
           if (subsys->get("code", o)) {
+            if (mMainScriptFn.empty()) {
+              mMainScriptFn = MAINSCRIPT_DEFAULT_FILE_NAME;
+            }
             // set new main script
             mScriptMainContext->abort(stopall);
             mMainScript.setSource(o->stringValue());
@@ -416,7 +428,7 @@ public:
               LOG(LOG_INFO, "Checked global main script: syntax OK");
               if (subsys->get("save", o) && o->boolValue()) {
                 // save the script
-                err = string_tofile(dataPath(mainScriptFn), mMainScript.getSource());
+                err = string_tofile(dataPath(mMainScriptFn), mMainScript.getSource());
               }
             }
             else {
@@ -431,14 +443,16 @@ public:
             // run the script
             LOG(LOG_NOTICE, "Re-starting global main script");
             mMainScript.run(stopall);
+            execaction = true;
           }
-          else if (!newCode) {
+          else if (!newCode && !execaction) {
             // return current mainscript code
             result = JsonObject::newObj();
             result->add("code", JsonObject::newString(mMainScript.getSource()));
           }
           else {
             // ok w/o result
+            result = JsonObject::newObj();
           }
         }
         #ifdef TO_BE_DONE
@@ -461,7 +475,7 @@ public:
         err = TextError::err("missing command object");
       }
       JsonObjectPtr response = JsonObject::newObj();
-      if (result) response->add("result", result);
+      response->add("result", result); // including empty result
       if (err) response->add("error", JsonObject::newString(err->description()));
       aUbusRequest->sendResponse(response);
     }
@@ -485,7 +499,7 @@ public:
     if (mUbusApiServer) {
       mUbusApiServer->startServer();
     }
-    #endif
+    #endif // ENABLE_UBUS
     #if TO_BE_DONE
     // slave address (or master when address==255)
     int slave = 1;
@@ -558,30 +572,34 @@ public:
       StandardScriptingDomain::sharedDomain().registerMember("modbus_master", modBusMaster->representingScriptObj());
     }
     #endif // TO_BE_DONE
+    #if ENABLE_P44SCRIPT
     // install app specific global predefined objects
     // - app functions
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new KksDcmDLookup(*this));
     // load and start main script
-    string code;
-    err = string_fromfile(dataPath(MAINSCRIPT_FILE_NAME), code);
-    if (Error::notOK(err)) {
-      err = string_fromfile(resourcePath(MAINSCRIPT_FILE_NAME), code);
+    if (getStringOption("mainscript", mMainScriptFn)) {
+      string code;
+      err = string_fromfile(dataPath(mMainScriptFn), code);
       if (Error::notOK(err)) {
-        err->prefixMessage("Cannot open '" MAINSCRIPT_FILE_NAME "': ");
+        err = string_fromfile(resourcePath(mMainScriptFn), code);
+        if (Error::notOK(err)) {
+          err->prefixMessage("Cannot open '%s': ", mMainScriptFn.c_str());
+        }
+      }
+      if (Error::isOK(err)) {
+        mMainScript.setSource(code);
+        ScriptObjPtr res = mMainScript.syntaxcheck();
+        if (res && res->isErr()) {
+          err = res->errorValue();
+          err->prefixMessage("Syntax Error in mainscript: ");
+        }
+        else {
+          LOG(LOG_NOTICE, "Starting mainscript");
+          mMainScript.run(inherit, boost::bind(&KksDcmD::mainScriptDone, this, _1));
+        }
       }
     }
-    if (Error::isOK(err)) {
-      mMainScript.setSource(code);
-      ScriptObjPtr res = mMainScript.syntaxcheck();
-      if (res && res->isErr()) {
-        err = res->errorValue();
-        err->prefixMessage("Syntax Error in mainscript: ");
-      }
-      else {
-        LOG(LOG_NOTICE, "Starting mainscript");
-        mMainScript.run(inherit, boost::bind(&KksDcmD::mainScriptDone, this, _1));
-      }
-    }
+    #endif // ENABLE_P44SCRIPT
     // display error
     if (Error::notOK(err)) {
       LOG(LOG_ERR, "Startup error: %s", Error::text(err));
