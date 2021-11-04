@@ -574,8 +574,33 @@ public:
     #endif // TO_BE_DONE
     #if ENABLE_P44SCRIPT
     // install app specific global predefined objects
-    // - app functions
+    // - app specific functions
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new KksDcmDLookup(*this));
+    // - generic function
+    #if ENABLE_MODBUS_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::ModbusLookup);
+    #endif // ENABLE_HTTP_SCRIPT_FUNCS
+    #if ENABLE_HTTP_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::HttpLookup);
+    #endif // ENABLE_HTTP_SCRIPT_FUNCS
+    #if ENABLE_SOCKET_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::SocketLookup);
+    #endif // ENABLE_SOCKET_SCRIPT_FUNCS
+    #if ENABLE_WEBSOCKET_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::WebSocketLookup);
+    #endif // ENABLE_WEBSOCKET_SCRIPT_FUNCS
+    #if ENABLE_ANALOGIO_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::AnalogIoLookup);
+    #endif
+    #if ENABLE_DIGITALIO_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::DigitalIoLookup);
+    #endif
+    #if ENABLE_DCMOTOR_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::DcMotorLookup);
+    #endif
+    // TODO: add these
+    //StandardScriptingDomain::sharedDomain().registerMemberLookup(new i2cLookup());
+    //StandardScriptingDomain::sharedDomain().registerMemberLookup(new spiLookup());
     // load and start main script
     if (getStringOption("mainscript", mMainScriptFn)) {
       string code;
