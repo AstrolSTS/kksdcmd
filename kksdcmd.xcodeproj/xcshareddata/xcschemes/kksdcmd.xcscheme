@@ -50,6 +50,12 @@
             ReferencedContainer = "container:kksdcmd.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "--userlevel 2 --mainscript /Users/luz/Desktop/kksdcm-mainscript.txt -l 7"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

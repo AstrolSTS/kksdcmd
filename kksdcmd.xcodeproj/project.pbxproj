@@ -153,7 +153,6 @@
 		ED43FD6F22CC00BA00ED57F3 /* modbus-tcp.c */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.c.c; name = "modbus-tcp.c"; path = "src/modbus-tcp.c"; sourceTree = "<group>"; tabWidth = 4; };
 		ED43FD7022CC00BA00ED57F3 /* modbus-rtu.h */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.c.h; name = "modbus-rtu.h"; path = "src/modbus-rtu.h"; sourceTree = "<group>"; tabWidth = 4; };
 		ED43FD7122CC00BA00ED57F3 /* modbus-version.h */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.c.h; name = "modbus-version.h"; path = "src/modbus-version.h"; sourceTree = "<group>"; tabWidth = 4; };
-		ED43FD7222CC00BA00ED57F3 /* Makefile.am */ = {isa = PBXFileReference; lastKnownFileType = text; name = Makefile.am; path = src/Makefile.am; sourceTree = "<group>"; };
 		ED43FD7422CC00BA00ED57F3 /* modbus-rtu.c */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.c.c; name = "modbus-rtu.c"; path = "src/modbus-rtu.c"; sourceTree = "<group>"; tabWidth = 4; };
 		ED43FD7522CC00BA00ED57F3 /* modbus-tcp.h */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.c.h; name = "modbus-tcp.h"; path = "src/modbus-tcp.h"; sourceTree = "<group>"; tabWidth = 4; };
 		ED43FD7822CC00BA00ED57F3 /* modbus.h */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.c.h; name = modbus.h; path = src/modbus.h; sourceTree = "<group>"; tabWidth = 4; usesTabs = 0; };
@@ -347,7 +346,6 @@
 			isa = PBXGroup;
 			children = (
 				ED43FD6C22CC00BA00ED57F3 /* config.h */,
-				ED43FD7222CC00BA00ED57F3 /* Makefile.am */,
 				ED43FD6D22CC00BA00ED57F3 /* modbus-data.c */,
 				ED43FD6B22CC00BA00ED57F3 /* modbus-private.h */,
 				ED43FD7B22CC00BA00ED57F3 /* modbus-rtu-private.h */,

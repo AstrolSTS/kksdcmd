@@ -14,6 +14,8 @@
 #include "jsonobject.hpp"
 #include "analogio.hpp"
 #include "gpio.hpp"
+#include "i2c.hpp"
+#include "spi.hpp"
 
 #if ENABLE_UBUS
   #include "ubus.hpp"
@@ -338,6 +340,7 @@ public:
       JsonObjectPtr o;
       if (aJsonRequest) {
         JsonObjectPtr subsys;
+        // TODO: remove these???
         if (aJsonRequest->get("modbus", subsys)) {
           // modbus commands
           string cmd = subsys->stringValue();
@@ -500,86 +503,11 @@ public:
       mUbusApiServer->startServer();
     }
     #endif // ENABLE_UBUS
-    #if TO_BE_DONE
-    // slave address (or master when address==255)
-    int slave = 1;
-    getIntOption("slave", slave);
-    // General modbus connection params
-    string mbconn;
-    if (!getStringOption("connection", mbconn)) {
-      terminateAppWith(TextError::err("must specify --connection"));
-      return;
-    }
-    string txen;
-    getStringOption("rs485txenable", txen);
-    int txDelayUs = Never;
-    getIntOption("rs485txdelay", txDelayUs);
-    int byteTimeNs = 0;
-    getIntOption("bytetime", byteTimeNs);
-    string rxen;
-    getStringOption("rs485rxenable", rxen);
-    bool modbusDebug = getOption("debugmodbus");
-    // Master or slave
-    if (slave!=0) {
-      // we are a modbus slave
-      modBusSlave = ModbusSlavePtr(new ModbusSlave);
-      err = modBusSlave->setConnectionSpecification(
-        mbconn.c_str(),
-        DEFAULT_MODBUS_IP_PORT, DEFAULT_MODBUS_RTU_PARAMS,
-        txen.c_str(), txDelayUs,
-        rxen.empty() ? NULL : rxen.c_str(), // NULL if there is no separate rx enable
-        byteTimeNs
-      );
-      if (Error::notOK(err)) {
-        terminateAppWith(err->withPrefix("Invalid modbus connection: "));
-        return;
-      }
-      modBusSlave->setSlaveAddress(slave);
-      modBusSlave->setSlaveId(string_format("p44mbc %s %06llX", version().c_str(), macAddress()));
-      modBusSlave->setDebug(modbusDebug);
-      // registers
-      modBusSlave->setRegisterModel(
-        0, 0, // coils
-        0, 0, // input bits
-        REGISTER_FIRST, REGISTER_LAST-REGISTER_FIRST+1, // registers
-        0, 0 // input registers
-      );
-      // connect
-      err = modBusSlave->connect();
-      if (Error::notOK(err)) {
-        terminateAppWith(err->withPrefix("Failed to start modbus slave server: "));
-        return;
-      }
-      // - modbus slave scripting functions
-      StandardScriptingDomain::sharedDomain().registerMember("modbus_slave", modBusSlave->representingScriptObj());
-    }
-    else {
-      // Modbus master
-      modBusMaster = ModbusMasterPtr(new ModbusMaster);
-      err = modBusMaster->setConnectionSpecification(
-        mbconn.c_str(),
-        DEFAULT_MODBUS_IP_PORT, DEFAULT_MODBUS_RTU_PARAMS,
-        txen.c_str(), txDelayUs,
-        rxen.empty() ? NULL : rxen.c_str(), // NULL if there is no separate rx enable
-        byteTimeNs
-      );
-      if (Error::notOK(err)) {
-        terminateAppWith(err->withPrefix("Invalid modbus connection: "));
-        return;
-      }
-      modBusMaster->setDebug(modbusDebug);
-      // - modbus master scripting functions
-      StandardScriptingDomain::sharedDomain().registerMember("modbus_master", modBusMaster->representingScriptObj());
-    }
-    #endif // TO_BE_DONE
     #if ENABLE_P44SCRIPT
     // install app specific global predefined objects
     // - app specific functions
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new KksDcmDLookup(*this));
     // - generic function
-    #if ENABLE_MODBUS_SCRIPT_FUNCS
-    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::ModbusLookup);
-    #endif // ENABLE_HTTP_SCRIPT_FUNCS
     #if ENABLE_HTTP_SCRIPT_FUNCS
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::HttpLookup);
     #endif // ENABLE_HTTP_SCRIPT_FUNCS
@@ -598,9 +526,16 @@ public:
     #if ENABLE_DCMOTOR_SCRIPT_FUNCS
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::DcMotorLookup);
     #endif
-    // TODO: add these
-    //StandardScriptingDomain::sharedDomain().registerMemberLookup(new i2cLookup());
-    //StandardScriptingDomain::sharedDomain().registerMemberLookup(new spiLookup());
+    #if ENABLE_I2C_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::I2CLookup());
+    #endif
+    #if ENABLE_SPI_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::SPILookup());
+    #endif
+    #if ENABLE_MODBUS_SCRIPT_FUNCS
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::ModbusLookup);
+    #endif // ENABLE_HTTP_SCRIPT_FUNCS
+    // TODO: add hardwired init
     // load and start main script
     if (getStringOption("mainscript", mMainScriptFn)) {
       string code;
