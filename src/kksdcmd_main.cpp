@@ -50,7 +50,23 @@ static const struct blobmsg_policy kksmbcapi_policy[] = {
 #endif // ENABLE_UBUS
 
 
-#if ENABLE_P44SCRIPT && ENABLE_UBUS && TO_BE_DONE
+static JsonObjectPtr makeResponse(JsonObjectPtr aResult, ErrorPtr aErr)
+{
+  JsonObjectPtr response = JsonObject::newObj();
+  if (Error::notOK(aErr)) {
+    response->add("errordomain", JsonObject::newString(aErr->domain()));
+    response->add("error", JsonObject::newInt32((int32_t)aErr->getErrorCode()));
+    response->add("errormessage", JsonObject::newString(aErr->getErrorMessage()));
+    if (aResult) response->add("result", aResult); // add non-empty result even in error case (not a common case)
+  }
+  else {
+    response->add("result", aResult); // including empty result
+  }
+  return response;
+}
+
+
+#if ENABLE_P44SCRIPT && ENABLE_UBUS
 
 // MARK: - ApiRequestObj
 
@@ -59,20 +75,20 @@ class ApiRequestObj : public JsonValue
   typedef JsonValue inherited;
 
   EventSource* mEventSource;
-  UbusRequestPtr mRequest;
+  UbusRequestPtr mUbusRequest;
 
 public:
-  ApiRequestObj(UbusRequestPtr aRequest, EventSource* aApiEventSource) :
-    inherited(aRequest ? aRequest->getRequest() : JsonObjectPtr()),
-    mRequest(aRequest),
+  ApiRequestObj(UbusRequestPtr aUbusRequest, EventSource* aApiEventSource) :
+    inherited(aUbusRequest ? aUbusRequest->msg() : JsonObjectPtr()),
+    mUbusRequest(aUbusRequest),
     mEventSource(aApiEventSource)
   {
   }
 
   void sendResponse(JsonObjectPtr aResponse, ErrorPtr aError)
   {
-    if (mRequest) mRequest->sendResponse(aResponse, aError);
-    mRequest.reset(); // done now
+    if (mUbusRequest) mUbusRequest->sendResponse(makeResponse(aResponse, aError), UBUS_STATUS_OK);
+    mUbusRequest.reset(); // done now
   }
 
   virtual string getAnnotation() const P44_OVERRIDE
@@ -126,7 +142,7 @@ const ScriptObjPtr ApiRequestObj::memberByName(const string aName, TypeInfo aMem
 
 class ScriptApiLookup;
 
-static ScriptApiLookup* scriptApiLookupP; // FIXME: ugly
+static ScriptApiLookup* gScriptApiLookupP; // FIXME: ugly static pointer
 
 // webrequest()        return latest unprocessed script (web) api request
 static void webrequest_func(BuiltinFunctionContextPtr f);
@@ -140,7 +156,7 @@ static const BuiltinMemberDescriptor scriptApiGlobals[] = {
 class ScriptApiLookup : public BuiltInMemberLookup, public EventSource
 {
   typedef BuiltInMemberLookup inherited;
-  friend class P44FeatureD;
+  friend class KksDcmD;
 
   UbusRequestPtr mPendingScriptApiRequest; ///< pending script API request
 
@@ -160,7 +176,7 @@ public:
 static void webrequest_func(BuiltinFunctionContextPtr f)
 {
   // return latest unprocessed API request
-  f->finish(new ApiRequestObj(scriptApiLookupP->pendingRequest(), scriptApiLookupP));
+  f->finish(new ApiRequestObj(gScriptApiLookupP->pendingRequest(), gScriptApiLookupP));
 }
 
 #endif // ENABLE_P44SCRIPT && ENABLE_UBUS
@@ -190,11 +206,6 @@ class KksDcmD : public CmdLineApp
   UbusServerPtr mUbusApiServer; ///< ubus API for openwrt web interface
   #endif // ENABLE_UBUS
 
-  // modbus
-  ModbusSlavePtr modBusSlave; ///< modbus slave
-  ModbusMasterPtr modBusMaster; ///< modbus master
-  DigitalIoPtr modbusRxEnable; ///< if set, modbus receive is enabled
-
   // app
   bool mActive;
 
@@ -203,6 +214,9 @@ class KksDcmD : public CmdLineApp
   string mMainScriptFn; ///< filename for the main script
   ScriptSource mMainScript;
   ScriptMainContextPtr mScriptMainContext;
+  #if ENABLE_UBUS
+  ScriptApiLookup mScriptApiLookup; ///< lookup and event source for script API
+  #endif // ENABLE_UBUS
   #endif // ENABLE_P44SCRIPT
 
 public:
@@ -213,8 +227,14 @@ public:
     mActive = true;
     // let all scripts run in the same context
 
+    #if ENABLE_P44SCRIPT
     mScriptMainContext = mMainScript.domain()->newContext();
     mMainScript.setSharedMainContext(mScriptMainContext);
+    #if ENABLE_UBUS
+    gScriptApiLookupP = &mScriptApiLookup; // FIXME: ugly static pointer
+    #endif
+    #endif // ENABLE_P44SCRIPT
+
   }
 
   virtual int main(int argc, char **argv)
@@ -222,13 +242,6 @@ public:
     const char *usageText =
     "Usage: %1$s [options]\n";
     const CmdLineOptionDescriptor options[] = {
-      { 0  , "connection",      true,  "connspec;serial interface for RTU or IP address for TCP (/device or IP[:port])" },
-      { 0  , "rs485txenable",   true,  "pinspec;a digital output pin specification for TX driver enable, 'RTS' or 'RS232'" },
-      { 0  , "rs485txdelay",    true,  "delay;delay of tx enable signal in uS" },
-      { 0  , "rs485rxenable",   true,  "pinspec;a digital output pin specification for RX input enable" },
-      { 0  , "bytetime",        true,  "time;custom time per byte in nS" },
-      { 0  , "slave",           true,  "slave;use this slave by default (0: act as master)" },
-      { 0  , "debugmodbus",     false, "enable libmodbus debug messages to stderr" },
       #if ENABLE_P44SCRIPT
       { 0  , "mainscript",     true,  "p44scriptfile;the main script to run after startup" },
       #endif
@@ -275,13 +288,12 @@ public:
   void initUbusApi()
   {
     mUbusApiServer = UbusServerPtr(new UbusServer());
-    UbusObjectPtr u = new UbusObject("kksdcmd", boost::bind(&KksDcmD::ubusApiRequestHandler, this, _1, _2, _3));
+    UbusObjectPtr u = new UbusObject("kksdcmd", boost::bind(&KksDcmD::ubusApiRequestHandler, this, _1));
     u->addMethod("log", logapi_policy);
     u->addMethod("api", kksmbcapi_policy);
     u->addMethod("quit");
     mUbusApiServer->registerObject(u);
   }
-
 
   #if ENABLE_P44SCRIPT
   void scriptExecHandler(UbusRequestPtr aUbusRequest, ScriptObjPtr aResult)
@@ -312,36 +324,37 @@ public:
   #endif // ENABLE_P44SCRIPT
 
 
-  void ubusApiRequestHandler(UbusRequestPtr aUbusRequest, const string aMethod, JsonObjectPtr aJsonRequest)
+  void ubusApiRequestHandler(UbusRequestPtr aUbusRequest)
   {
-    if (aMethod=="log") {
-      if (aJsonRequest) {
+    if (aUbusRequest->method()=="log") {
+      if (aUbusRequest->msg()) {
         JsonObjectPtr o;
-        if (aJsonRequest->get("level", o)) {
+        if (aUbusRequest->msg()->get("level", o)) {
           int oldLevel = LOGLEVEL;
           int newLevel = o->int32Value();
           SETLOGLEVEL(newLevel);
           LOG(newLevel, "\n\n========== changed log level from %d to %d ===============", oldLevel, newLevel);
         }
-        if (aJsonRequest->get("deltastamps", o)) {
+        if (aUbusRequest->msg()->get("deltastamps", o)) {
           SETDELTATIME(o->boolValue());
         }
       }
       aUbusRequest->sendResponse(JsonObjectPtr());
     }
-    else if (aMethod=="quit") {
+    else if (aUbusRequest->method()=="quit") {
       LOG(LOG_WARNING, "terminated via UBUS quit method");
       terminateApp(1);
       aUbusRequest->sendResponse(JsonObjectPtr());
     }
-    else if (aMethod=="api") {
+    else if (aUbusRequest->method()=="api") {
       ErrorPtr err;
       JsonObjectPtr result;
       JsonObjectPtr o;
-      if (aJsonRequest) {
+      if (aUbusRequest->msg()) {
         JsonObjectPtr subsys;
+        /* example how a API for C++ level instantiated modbus slave access could work (from JENNY)
         // TODO: remove these???
-        if (aJsonRequest->get("modbus", subsys)) {
+        if (aUbusRequest->msg()->get("modbus", subsys)) {
           // modbus commands
           string cmd = subsys->stringValue();
           if (cmd=="debug_on") {
@@ -355,8 +368,8 @@ public:
           else if (modBusSlave && cmd=="read_registers") {
             int reg = -1;
             int numReg = 1;
-            if (aJsonRequest->get("reg", o)) reg = o->int32Value();
-            if (aJsonRequest->get("count", o)) numReg = o->int32Value();
+            if (aUbusRequest->msg()->get("reg", o)) reg = o->int32Value();
+            if (aUbusRequest->msg()->get("count", o)) numReg = o->int32Value();
             if (reg<0 || numReg<1 || numReg>=MAX_REG) {
               err = TextError::err("invalid reg=%d, count=%d combination", reg, numReg);
             }
@@ -369,14 +382,14 @@ public:
           }
           else if (modBusSlave && cmd=="write_registers") {
             int reg = -1;
-            if (aJsonRequest->get("reg", o)) reg = o->int32Value();
+            if (aUbusRequest->msg()->get("reg", o)) reg = o->int32Value();
             int numReg = 0;
             uint16_t tab_reg[MAX_REG];
             if (reg<0) {
               err = TextError::err("invalid reg=%d");
             }
             else {
-              if (aJsonRequest->get("values", o)) {
+              if (aUbusRequest->msg()->get("values", o)) {
                 if (o->isType(json_type_array)) {
                   // multiple
                   for(int i=0; i<o->arrayLength(); i++) {
@@ -400,8 +413,10 @@ public:
             err = TextError::err("unknown modbus command");
           }
         }
+        */
         #if ENABLE_P44SCRIPT
-        if (aJsonRequest->get("mainscript", subsys)) {
+        // API for editing/starting/stopping mainscript via web interface
+        if (aUbusRequest->msg()->get("mainscript", subsys)) {
           if (subsys->get("execcode", o)) {
             // direct execution of a script command line in the common main/initscript context
             ScriptSource src(sourcecode+regular+keepvars+concurrently+ephemeralSource, "execcode");
@@ -458,29 +473,26 @@ public:
             result = JsonObject::newObj();
           }
         }
-        #ifdef TO_BE_DONE
-        else if (aJsonRequest->get("scriptapi", subsys)) {
+        // API for interfacing Web App into p44script-implemented functionality (mainscript)
+        if (aUbusRequest->msg()->get("scriptapi", subsys)) {
           // scripted parts of the (web) API
-          if (!scriptApiLookup.hasSinks()) {
+          if (!mScriptApiLookup.hasSinks()) {
             // no script API active
             err = WebError::webErr(500, "script API not active");
           }
           else {
-            %%%
-            scriptApiLookup.mPendingScriptApiRequest = UbusRequestPtr(new APICallbackRequest(aData, aRequestDoneCB));
-            scriptApiLookup.sendEvent(new ApiRequestObj(scriptApiLookup.mPendingScriptApiRequest, &scriptApiLookup));
+            // pass as event to p44script to handle
+            aUbusRequest->setMsg(subsys); // only pass the subsys
+            mScriptApiLookup.mPendingScriptApiRequest = aUbusRequest;
+            mScriptApiLookup.sendEvent(new ApiRequestObj(mScriptApiLookup.mPendingScriptApiRequest, &mScriptApiLookup));
           }
         }
-        #endif // TO_BE_DONE
         #endif // ENABLE_P44SCRIPT
       }
       else {
         err = TextError::err("missing command object");
       }
-      JsonObjectPtr response = JsonObject::newObj();
-      response->add("result", result); // including empty result
-      if (err) response->add("error", JsonObject::newString(err->description()));
-      aUbusRequest->sendResponse(response);
+      aUbusRequest->sendResponse(makeResponse(result, err));
     }
     else {
       // no other methods implemented yet
@@ -488,8 +500,9 @@ public:
     }
   }
 
-  #endif // ENABLE_UBUS
 
+
+  #endif // ENABLE_UBUS
 
   // MARK: - initialisation
 
@@ -507,6 +520,10 @@ public:
     // install app specific global predefined objects
     // - app specific functions
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new KksDcmDLookup(*this));
+    #if ENABLE_UBUS
+    // - web api implemented in p44script (webrequest() global event source)
+    StandardScriptingDomain::sharedDomain().registerMemberLookup(gScriptApiLookupP);
+    #endif
     // - generic function
     #if ENABLE_HTTP_SCRIPT_FUNCS
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::HttpLookup);
