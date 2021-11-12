@@ -11,6 +11,9 @@
 #ifndef ENABLE_JSON_APPLICATION
   #define ENABLE_JSON_APPLICATION 1 // enables JSON utilities in Application
 #endif
+#ifndef ENABLE_APPLICATION_SUPPORT
+  #define ENABLE_APPLICATION_SUPPORT 1 // support for Application (e.g. domain specific commandline options) in other parts of P44 utils
+#endif
 #define ENABLE_P44LRGRAPHICS 0 // p44lrgraphics support in some of the p44utils components
 #define ENABLE_SOCKET_SCRIPT_FUNCS 0 // no socket support
 #define ENABLE_HTTP_SCRIPT_FUNCS 0 // no http support
