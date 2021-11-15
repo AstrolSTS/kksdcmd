@@ -1,17 +1,19 @@
 
-p44mbcd
+kksdcmd
 =======
 
-"p44mbcd" is a free (opensource, GPLv3) daemon for a modbus device with touch lcd grahical user interface.
+"kksdcmd" is a free (opensource, GPLv3) industrial controller daemon with access to modbus, SPI via p44script
 
-p44mbcd is based on a set of generic C++ utility classes called [**p44utils**](https://github.com/plan44/p44utils), which provides basic mechanisms for mainloop-based, nonblocking I/O driven automation daemons, including [libmodbus](https://www.libmodbus.org) and [LittlevGL](https://littlevgl.com) integration. p44utils, [lvgl](https://github.com/plan44/lvgl/tree/luz) and [lv_drivers](https://github.com/plan44/lv_drivers/tree/luz) are included as submodules into this project, a [heavily modified libmodbus]() is included as part of p44utils.
+kksdcmd is based on a set of generic C++ utility classes called [**p44utils**](https://github.com/plan44/p44utils), which provides basic mechanisms for mainloop-based, nonblocking I/O driven automation daemons, including [libmodbus](https://www.libmodbus.org).
+p44utils also support the p44script scripting language to use/configure many of p44utils' services and utilities directly from scripts, which makes prototyping and customisation easy.
+p44utils is included as submodules into this project, a [heavily modified libmodbus](https://github.com/plan44/p44utils/tree/master/thirdparty/libmodbus) is included as part of p44utils.
 
 License
 -------
 
-p44mbcd is licensed under the GPLv3 License (see COPYING).
+kksdcmd is licensed under the GPLv3 License (see COPYING).
 
-*(c) 2019-2020 by Lukas Zeller / [plan44.ch](http://www.plan44.ch/automation)*
+*(c) 2021 by Lukas Zeller / [plan44.ch](http://www.plan44.ch/automation)*
 
 
 
