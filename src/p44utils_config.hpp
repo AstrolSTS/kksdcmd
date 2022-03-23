@@ -19,4 +19,8 @@
 #define ENABLE_HTTP_SCRIPT_FUNCS 0 // no http support
 #define ENABLE_ANALOGIO_COLOR_SUPPORT 0 // no analog IO color support
 
+#if DEBUG
+#define SPI_SIMULATION 1
+#endif
+
 #endif // __p44utils__config__

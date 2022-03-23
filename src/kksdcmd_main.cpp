@@ -30,6 +30,7 @@
 #include "gpio.hpp"
 #include "i2c.hpp"
 #include "spi.hpp"
+#include "corespiproto.hpp"
 
 #if ENABLE_UBUS
   #include "ubus.hpp"
@@ -78,6 +79,7 @@ static JsonObjectPtr makeResponse(JsonObjectPtr aResult, ErrorPtr aErr)
   }
   return response;
 }
+
 
 
 #if ENABLE_P44SCRIPT && ENABLE_UBUS
@@ -219,6 +221,10 @@ class KksDcmD : public CmdLineApp
   // ubus API
   UbusServerPtr mUbusApiServer; ///< ubus API for openwrt web interface
   #endif // ENABLE_UBUS
+
+  // SPI
+  CoreSPIProtoPtr mCoreSPI;
+
 
   // app
   bool mActive;
@@ -566,6 +572,26 @@ public:
     #if ENABLE_MODBUS_SCRIPT_FUNCS
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::ModbusLookup);
     #endif // ENABLE_HTTP_SCRIPT_FUNCS
+
+    // FIXME: clean up
+    mCoreSPI = CoreSPIProtoPtr(new CoreSPIProto);
+    SPIDevicePtr dev = SPIManager::sharedManager().getDevice(10, "generic");
+    mCoreSPI->setSpiDevice(dev);
+
+    uint8_t data[3];
+    data[0] = 0xC8;
+    data[1] = 0x00;
+    err = mCoreSPI->writeData(0x0036, 2, data);
+    LOG(LOG_NOTICE, "write: status %s", Error::text(err))
+
+    dev->getBus().setDataToRead(hexToBinaryString("FFFFAB9400003367"));
+    err = mCoreSPI->readData(0x0020, 3, data);
+    string res;
+    res.assign((char *)data, 3);
+    LOG(LOG_NOTICE, "read: %s: status %s", binaryToHexString(res).c_str(), Error::text(err))
+
+    terminateApp(0);
+
     // TODO: add hardwired init
     // load and start main script
     if (getStringOption("mainscript", mMainScriptFn)) {

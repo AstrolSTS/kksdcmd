@@ -155,6 +155,8 @@ kksdcmd_SOURCES = \
   src/p44utils/thirdparty/civetweb/openssl_hostname_validation.inl \
   src/p44utils/p44utils_common.hpp \
   src/p44utils_config.hpp \
+  src/corespiproto.cpp \
+  src/corespiproto.hpp \
   src/kksdcmd_main.cpp
 
 endif

@@ -21,6 +21,7 @@
 		ED25C42717EC59D1005B115F /* socketcomm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED55760B174CC03A00CCC4DD /* socketcomm.cpp */; };
 		ED25C42917EC59D1005B115F /* jsonobject.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED5576131750B15E00CCC4DD /* jsonobject.cpp */; };
 		ED25C42D17EC8382005B115F /* jsonwebclient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED07E26017DA37BF00889CC3 /* jsonwebclient.cpp */; };
+		ED27086527EB2D8E00726C29 /* corespiproto.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED27086327EB2D8E00726C29 /* corespiproto.cpp */; };
 		ED3F75302273012E00E9A249 /* ubus.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED3F752E2273012E00E9A249 /* ubus.cpp */; };
 		ED41FABA1918046300E0DCED /* crc32.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED41FAB81918046300E0DCED /* crc32.cpp */; };
 		ED43FCFA22CBFD5F00ED57F3 /* modbus.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED43FCF922CBFD5E00ED57F3 /* modbus.cpp */; };
@@ -134,6 +135,8 @@
 		ED22C8D02719B67A004D9CEF /* valueanimator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = valueanimator.cpp; sourceTree = "<group>"; };
 		ED22C8D12719B67A004D9CEF /* valueanimator.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = valueanimator.hpp; sourceTree = "<group>"; };
 		ED25C41517EC5947005B115F /* kksdcmd */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = kksdcmd; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED27086327EB2D8E00726C29 /* corespiproto.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = corespiproto.cpp; sourceTree = "<group>"; };
+		ED27086427EB2D8E00726C29 /* corespiproto.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = corespiproto.hpp; sourceTree = "<group>"; };
 		ED369996178D5BD600376405 /* digitalio.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = digitalio.cpp; sourceTree = "<group>"; };
 		ED369997178D5BE300376405 /* digitalio.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = digitalio.hpp; sourceTree = "<group>"; };
 		ED369998178D6A2C00376405 /* iopin.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = iopin.cpp; sourceTree = "<group>"; };
@@ -200,9 +203,6 @@
 		ED8A99A92020D2070069EBF6 /* configure.ac */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = configure.ac; sourceTree = "<group>"; };
 		ED8A99AA2020D2070069EBF6 /* Makefile.am */ = {isa = PBXFileReference; explicitFileType = sourcecode.make; fileEncoding = 4; path = Makefile.am; sourceTree = "<group>"; };
 		ED93DFF21D256BD400D6AF0A /* p44utils_common.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = p44utils_common.hpp; sourceTree = "<group>"; };
-		ED9D3C662276F294009B43A8 /* lv_conf.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lv_conf.h; sourceTree = "<group>"; };
-		ED9D3C672276F2F9009B43A8 /* lv_drv_conf.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lv_drv_conf.h; sourceTree = "<group>"; };
-		ED9D3C682276F37C009B43A8 /* lv_ex_conf.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lv_ex_conf.h; sourceTree = "<group>"; };
 		EDB1892F17D4B7330088B6A5 /* ssdpsearch.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ssdpsearch.cpp; sourceTree = "<group>"; };
 		EDB1893017D4B7330088B6A5 /* ssdpsearch.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = ssdpsearch.hpp; sourceTree = "<group>"; };
 		EDB284421732965700EAE5DE /* operationqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = operationqueue.cpp; sourceTree = "<group>"; };
@@ -439,11 +439,10 @@
 			isa = PBXGroup;
 			children = (
 				ED49ECD2237EBE5500706C43 /* p44utils_config.hpp */,
-				ED9D3C662276F294009B43A8 /* lv_conf.h */,
-				ED9D3C672276F2F9009B43A8 /* lv_drv_conf.h */,
-				ED9D3C682276F37C009B43A8 /* lv_ex_conf.h */,
 				ED6D7BEA1716B6B1005DED18 /* kksdcmd_main.cpp */,
 				ED5A05D322CE28B80047D746 /* p44mbutil_main.cpp */,
+				ED27086327EB2D8E00726C29 /* corespiproto.cpp */,
+				ED27086427EB2D8E00726C29 /* corespiproto.hpp */,
 			);
 			path = src;
 			sourceTree = "<group>";
@@ -550,6 +549,7 @@
 				EDB5B3F523226DBE00A0C84D /* timeutils.cpp in Sources */,
 				EDF1AF261D0D98D000302F77 /* spi.cpp in Sources */,
 				EDDEE88917FC6BEE00A65599 /* digitalio.cpp in Sources */,
+				ED27086527EB2D8E00726C29 /* corespiproto.cpp in Sources */,
 				ED43FD7F22CC154900ED57F3 /* modbus.c in Sources */,
 				ED25C42417EC59D1005B115F /* application.cpp in Sources */,
 				ED3F75302273012E00E9A249 /* ubus.cpp in Sources */,
