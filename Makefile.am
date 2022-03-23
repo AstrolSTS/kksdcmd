@@ -144,6 +144,8 @@ kksdcmd_SOURCES = \
   src/p44utils/utils.hpp \
   src/p44utils/valueanimator.cpp \
   src/p44utils/valueanimator.hpp \
+  src/p44utils/valueunits.cpp \
+  src/p44utils/valueunits.hpp \
   src/p44utils/extutils.cpp \
   src/p44utils/extutils.hpp \
   src/p44utils/thirdparty/civetweb/civetweb.c \
@@ -157,6 +159,8 @@ kksdcmd_SOURCES = \
   src/p44utils_config.hpp \
   src/corespiproto.cpp \
   src/corespiproto.hpp \
+  src/coreregmodel.cpp \
+  src/coreregmodel.hpp \
   src/kksdcmd_main.cpp
 
 endif
