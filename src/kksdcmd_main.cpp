@@ -30,7 +30,7 @@
 #include "gpio.hpp"
 #include "i2c.hpp"
 #include "spi.hpp"
-#include "corespiproto.hpp"
+#include "coreregmodel.hpp"
 
 #if ENABLE_UBUS
   #include "ubus.hpp"
@@ -222,9 +222,13 @@ class KksDcmD : public CmdLineApp
   UbusServerPtr mUbusApiServer; ///< ubus API for openwrt web interface
   #endif // ENABLE_UBUS
 
+  // FIXME: remove
+  /*
   // SPI
   CoreSPIProtoPtr mCoreSPI;
+  */
 
+  CoreRegModelPtr mCoreRegModel;
 
   // app
   bool mActive;
@@ -573,6 +577,7 @@ public:
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::ModbusLookup);
     #endif // ENABLE_HTTP_SCRIPT_FUNCS
 
+    /*
     // FIXME: clean up
     mCoreSPI = CoreSPIProtoPtr(new CoreSPIProto);
     SPIDevicePtr dev = SPIManager::sharedManager().getDevice(10, "generic");
@@ -591,6 +596,21 @@ public:
     LOG(LOG_NOTICE, "read: %s: status %s", binaryToHexString(res).c_str(), Error::text(err))
 
     terminateApp(0);
+    */
+
+    // FIXME: clean up
+    mCoreRegModel = CoreRegModelPtr(new CoreRegModel);
+    SPIDevicePtr dev = SPIManager::sharedManager().getDevice(10, "generic");
+    mCoreRegModel->coreSPIProto().setSpiDevice(dev);
+    mCoreRegModel->modbusSlave().setConnectionSpecification("0.0.0.0:8765", 8765, NULL);
+    err = mCoreRegModel->updateModbusRegistersFromSPI(0, mCoreRegModel->maxReg());
+    if (Error::notOK(err)) {
+      LOG(LOG_ERR, "Error updating registers: %s", err->text());
+    }
+    JsonObjectPtr infos = mCoreRegModel->getRegisterInfos();
+    LOG(LOG_NOTICE, "Registers:\n%s", infos->json_str(JSON_C_TO_STRING_PRETTY).c_str());
+    terminateApp(0);
+
 
     // TODO: add hardwired init
     // load and start main script

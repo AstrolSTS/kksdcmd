@@ -70,6 +70,8 @@ ErrorPtr CoreSPIProto::writeData(uint16_t aAddr, uint8_t aLen, const uint8_t* aD
 }
 
 
+#define DUMMYDATA 1
+
 ErrorPtr CoreSPIProto::readData(uint16_t aAddr, uint8_t aLen, uint8_t* aData)
 {
   ErrorPtr err;
@@ -142,6 +144,16 @@ ErrorPtr CoreSPIProto::readData(uint16_t aAddr, uint8_t aLen, uint8_t* aData)
       }
     }
   }
+  #if DUMMYDATA
+  if (Error::notOK(err)) {
+    LOG(LOG_WARNING, "SPI access addr=%d, len=%d had error, returning dummy data: %s", aAddr, aLen, err->text());
+    // just reflect 8-bit address as data
+    for (int i=0; i<aLen; i++) {
+      *aData++ = aAddr+i;
+    }
+    err.reset(); // do not propagate
+  }
+  #endif
   return err;
 }
 
