@@ -30,6 +30,8 @@
 
 #include "valueunits.hpp"
 
+#include <math.h>
+
 using namespace p44;
 
 // MARK: - Core Module Register definitions
@@ -331,7 +333,7 @@ static int32_t extractReg(const CoreModuleRegister* aRegP, const uint8_t* aDataP
       data |= (0xFFFFFFFF<<nb*8); // extend sign bit
     }
   }
-  return (long)data;
+  return (int32_t)data;
 }
 
 
@@ -440,13 +442,13 @@ ErrorPtr CoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue, boo
   const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
   if (aUserInput) {
     if (regP->mbinput) {
-      return Error::err<CoreRegError>(CoreRegError::readOnly);
+      return Error::err<CoreRegError>(CoreRegError::readOnly, "Register index %d is read-only", aRegIdx);
     }
     if (
       !(regP->max==0 && regP->min==0) && // min and max zero means no range limit
       (aValue>regP->max || aValue<regP->min)
     ) {
-      return Error::err<CoreRegError>(CoreRegError::outOfRange);
+      return Error::err<CoreRegError>(CoreRegError::outOfRange, "Value is out of range for register index %d", aRegIdx);
     }
   }
   modbusSlave().setReg(regP->mbreg, regP->mbinput, (uint16_t)aValue); // LSWord
@@ -503,7 +505,7 @@ JsonObjectPtr CoreRegModel::getRegisterInfo(RegIndex aRegIdx)
       info->add("value", JsonObject::newDouble(val));
       int fracDigits = (int)(-::log(regP->resolution)/::log(10)+0.99);
       if (fracDigits<0) fracDigits=0;
-      info->add("formatted", JsonObject::newString(string_format("%0.*f", fracDigits, val)));
+      info->add("formatted", JsonObject::newString(string_format("%0.*f %s", fracDigits, val, valueUnitName(regP->unit, true).c_str())));
     }
     else {
       info->add("error", JsonObject::newString(err->text()));
@@ -511,6 +513,22 @@ JsonObjectPtr CoreRegModel::getRegisterInfo(RegIndex aRegIdx)
     }
   }
   return info;
+}
+
+
+ErrorPtr CoreRegModel::setRegisterValue(RegIndex aRegIdx, JsonObjectPtr aNewValue)
+{
+  // for now, just convert to double and then set as user value
+  // TODO: maybe enhance parsing for enums, flags etc.
+  if (!aNewValue) {
+    return Error::err<CoreRegError>(CoreRegError::invalidInput, "missing value");
+  }
+  string nvs = aNewValue->stringValue();
+  double nvd;
+  if (sscanf(nvs.c_str(), "%lf", &nvd)!=1) {
+    return Error::err<CoreRegError>(CoreRegError::invalidInput, "invalid number");
+  }
+  return setUserValue(aRegIdx, nvd);
 }
 
 

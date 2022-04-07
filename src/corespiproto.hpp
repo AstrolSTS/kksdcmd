@@ -54,7 +54,7 @@ namespace p44 {
       "noSPI",
       "writeErr",
       "readErr",
-      "readTimeout","
+      "readTimeout",
       "crcErr",
       "protoErr",
     };

@@ -40,10 +40,8 @@
 #include <math.h>
 
 #define DEFAULT_MODBUS_RTU_PARAMS "115200,8,N,1" // [baud rate][,[bits][,[parity][,[stopbits][,[H]]]]]
-#define DEFAULT_MODBUS_IP_PORT 1502
-
-#define REGISTER_FIRST 100
-#define REGISTER_LAST 199
+#define DEFAULT_MODBUS_IP_PORT 8765
+#define DEFAULT_MODBUS_CONNECTION "0.0.0.0:8765"
 
 #define MAINSCRIPT_DEFAULT_FILE_NAME "mainscript.txt"
 
@@ -71,6 +69,7 @@ static JsonObjectPtr makeResponse(JsonObjectPtr aResult, ErrorPtr aErr)
   if (Error::notOK(aErr)) {
     response->add("errordomain", JsonObject::newString(aErr->domain()));
     response->add("error", JsonObject::newInt32((int32_t)aErr->getErrorCode()));
+    response->add("errorname", JsonObject::newString(aErr->errorCodeText().c_str()));
     response->add("errormessage", JsonObject::newString(aErr->getErrorMessage()));
     if (aResult) response->add("result", aResult); // add non-empty result even in error case (not a common case)
   }
@@ -267,11 +266,13 @@ public:
     "Usage: %1$s [options]\n";
     const CmdLineOptionDescriptor options[] = {
       #if ENABLE_P44SCRIPT
-      { 0  , "mainscript",     true,  "p44scriptfile;the main script to run after startup" },
+      { 0  , "mainscript",    true,  "p44scriptfile;the main script to run after startup" },
       #endif
       #if ENABLE_UBUS
-      { 0  , "ubusapi",         false, "enable ubus API" },
+      { 0  , "ubusapi",       false, "enable ubus API" },
       #endif
+      { 0  , "modbus",        true,  "ip:port;TCP address (0.0.0.0 for server) port to listen for modbus connections, default=" DEFAULT_MODBUS_CONNECTION },
+      { 0  , "corespi",       true,  "busno*10+CSno;SPI bus and CS number to use, default=10" },
       CMDLINE_APPLICATION_PATHOPTIONS,
       DAEMON_APPLICATION_LOGOPTIONS,
       CMDLINE_APPLICATION_STDOPTIONS,
@@ -304,7 +305,6 @@ public:
 
   // MARK: - ubus API
 
-  
   #if ENABLE_UBUS
 
   #define MAX_REG 64
@@ -376,68 +376,57 @@ public:
       JsonObjectPtr o;
       if (aUbusRequest->msg()) {
         JsonObjectPtr subsys;
-        /* example how a API for C++ level instantiated modbus slave access could work (from JENNY)
-        // TODO: remove these???
-        if (aUbusRequest->msg()->get("modbus", subsys)) {
-          // modbus commands
-          string cmd = subsys->stringValue();
-          if (cmd=="debug_on") {
-            if (modBusSlave) modBusSlave->setDebug(true);
-            if (modBusMaster) modBusMaster->setDebug(true);
-          }
-          else if (cmd=="debug_off") {
-            if (modBusSlave) modBusSlave->setDebug(false);
-            if (modBusMaster) modBusMaster->setDebug(false);
-          }
-          else if (modBusSlave && cmd=="read_registers") {
-            int reg = -1;
-            int numReg = 1;
-            if (aUbusRequest->msg()->get("reg", o)) reg = o->int32Value();
-            if (aUbusRequest->msg()->get("count", o)) numReg = o->int32Value();
-            if (reg<0 || numReg<1 || numReg>=MAX_REG) {
-              err = TextError::err("invalid reg=%d, count=%d combination", reg, numReg);
-            }
-            else {
-              uint16_t tab_reg[MAX_REG];
-              for (int i=0; i<numReg; i++) {
-                result->arrayAppend(JsonObject::newInt32(modBusSlave->getReg(reg+i, false)));
-              }
-            }
-          }
-          else if (modBusSlave && cmd=="write_registers") {
-            int reg = -1;
-            if (aUbusRequest->msg()->get("reg", o)) reg = o->int32Value();
-            int numReg = 0;
-            uint16_t tab_reg[MAX_REG];
-            if (reg<0) {
-              err = TextError::err("invalid reg=%d");
-            }
-            else {
-              if (aUbusRequest->msg()->get("values", o)) {
-                if (o->isType(json_type_array)) {
-                  // multiple
-                  for(int i=0; i<o->arrayLength(); i++) {
-                    modBusSlave->setReg(reg+i, false, o->arrayGet(i)->int32Value());
-                  }
-                }
-                else {
-                  // single
-                  modBusSlave->setReg(reg, false, o->int32Value());
-                }
-              }
-              else {
-                err = TextError::err("missing 'values'");
-              }
-            }
-            if (Error::isOK(err)) {
-              result = JsonObject::newBool(true);
-            }
+        // API for KKS-DCM core register web interface
+        if (aUbusRequest->msg()->get("coreregs", subsys)) {
+          if (!subsys->get("cmd", o)) {
+            err = TextError::err("missing 'cmd' in 'coreregs'");
           }
           else {
-            err = TextError::err("unknown modbus command");
+            string cmd = o->stringValue();
+            if (cmd=="list") {
+              // list current register model
+              if (subsys->get("refresh", o)) {
+                if (o->boolValue()) {
+                  err = mCoreRegModel->updateModbusRegistersFromSPI(0, mCoreRegModel->maxReg());
+                }
+              }
+              result = mCoreRegModel->getRegisterInfos();
+            }
+            else if (cmd=="read") {
+              if (!subsys->get("index", o)) {
+                err = TextError::err("missing 'index' for 'read' command");
+              }
+              else {
+                CoreRegModel::RegIndex regIndex = o->int32Value();
+                if (subsys->get("refresh", o)) {
+                  if (o->boolValue()) {
+                    err = mCoreRegModel->updateModbusRegistersFromSPI(regIndex, regIndex);
+                  }
+                }
+                if (Error::isOK(err)) {
+                  result = mCoreRegModel->getRegisterInfo(regIndex);
+                }
+              }
+            }
+            else if (cmd=="write") {
+              if (!subsys->get("index", o)) {
+                err = TextError::err("missing 'index' for 'write' command");
+              }
+              else {
+                CoreRegModel::RegIndex regIndex = o->int32Value();
+                if (!subsys->get("value", o)) {
+                  err = TextError::err("missing 'value' for 'write' command");
+                }
+                else {
+                  err = mCoreRegModel->setRegisterValue(regIndex, o);
+                }
+              }
+            }
+            else {
+              err = TextError::err("unknown 'cmd'='%s' in 'coreregs'", cmd.c_str());
+            }
           }
         }
-        */
         #if ENABLE_P44SCRIPT
         // API for editing/starting/stopping mainscript via web interface
         if (aUbusRequest->msg()->get("mainscript", subsys)) {
@@ -528,6 +517,26 @@ public:
 
   #endif // ENABLE_UBUS
 
+  // MARK: - modbus access handler
+
+  ErrorPtr modbusAccessHandler(int aAddress, bool aBit, bool aInput, bool aWrite)
+  {
+    ErrorPtr err;
+    if (!aBit) {
+      CoreRegModel::RegIndex regIndex = mCoreRegModel->regindexFromModbusReg(aAddress, aInput);
+      if (aWrite) {
+        // new data written, forward to core via SPI
+        mCoreRegModel->updateSPIRegisterFromModbus(regIndex);
+      }
+      else {
+        // get current data from code via SPI
+        mCoreRegModel->updateModbusRegistersFromSPI(regIndex, regIndex);
+      }
+    }
+    return err;
+  }
+
+
   // MARK: - initialisation
 
   virtual void initialize()
@@ -576,6 +585,7 @@ public:
     #if ENABLE_MODBUS_SCRIPT_FUNCS
     StandardScriptingDomain::sharedDomain().registerMemberLookup(new P44Script::ModbusLookup);
     #endif // ENABLE_HTTP_SCRIPT_FUNCS
+    #endif // ENABLE_P44SCRIPT
 
     /*
     // FIXME: clean up
@@ -599,20 +609,31 @@ public:
     */
 
     // FIXME: clean up
+    // Create the register model
     mCoreRegModel = CoreRegModelPtr(new CoreRegModel);
-    SPIDevicePtr dev = SPIManager::sharedManager().getDevice(10, "generic");
+    // Add the SPI
+    int spino = 10; // default to bus 1, CS0 (as in KKS-DCM revA hardware)
+    getIntOption("corespi", spino);
+    SPIDevicePtr dev = SPIManager::sharedManager().getDevice(spino, "generic");
     mCoreRegModel->coreSPIProto().setSpiDevice(dev);
-    mCoreRegModel->modbusSlave().setConnectionSpecification("0.0.0.0:8765", 8765, NULL);
+    // Prepare the modbus slave for TCP connections
+    string mbconn = DEFAULT_MODBUS_CONNECTION;
+    getStringOption("modbus", mbconn);
+    mCoreRegModel->modbusSlave().setConnectionSpecification(mbconn.c_str(), DEFAULT_MODBUS_IP_PORT, NULL);
+    mCoreRegModel->modbusSlave().setSlaveId(string_format("KKS-DCM version %s", Application::version().c_str()));
+    // start TCP server for modbus slave
+    err = mCoreRegModel->modbusSlave().connect();
+    if (Error::notOK(err)) {
+      LOG(LOG_ERR, "Error starting modbus TCP server/slave: %s", err->text());
+    }
+    // read initial values into all modbus registers from actual hardware
     err = mCoreRegModel->updateModbusRegistersFromSPI(0, mCoreRegModel->maxReg());
     if (Error::notOK(err)) {
       LOG(LOG_ERR, "Error updating registers: %s", err->text());
     }
-    JsonObjectPtr infos = mCoreRegModel->getRegisterInfos();
-    LOG(LOG_NOTICE, "Registers:\n%s", infos->json_str(JSON_C_TO_STRING_PRETTY).c_str());
-    terminateApp(0);
-
-
-    // TODO: add hardwired init
+    // install modbus access handler
+    mCoreRegModel->modbusSlave().setValueAccessHandler(boost::bind(&KksDcmD::modbusAccessHandler, this, _1, _2, _3, _4));
+    #if ENABLE_P44SCRIPT
     // load and start main script
     if (getStringOption("mainscript", mMainScriptFn)) {
       string code;
@@ -665,6 +686,7 @@ public:
 
 // MARK: - script functions
 
+// FIXME: probably remove exit(), we now have restartapp() in p44script
 
 // exit(exitcode)
 static const BuiltInArgDesc exit_args[] = { { numeric } };

@@ -1,5 +1,5 @@
 //
-//  Copyright (c) 2019 plan44.ch / Lukas Zeller, Zurich, Switzerland
+//  Copyright (c) 2019-2022 plan44.ch / Lukas Zeller, Zurich, Switzerland
 //
 
 #ifndef __p44utils__config__
@@ -19,8 +19,16 @@
 #define ENABLE_HTTP_SCRIPT_FUNCS 0 // no http support
 #define ENABLE_ANALOGIO_COLOR_SUPPORT 0 // no analog IO color support
 
+#ifndef ENABLE_NAMED_ERRORS
+  #define ENABLE_NAMED_ERRORS P44_CPP17_FEATURE // Enable if compiler can do C++17
+#endif
+
 #if DEBUG
-#define SPI_SIMULATION 1
+  #if defined(__APPLE__)
+    #define SPI_SIMULATION 1
+    #undef ENABLE_UBUS
+    #define ENABLE_UBUS 1
+  #endif
 #endif
 
 #endif // __p44utils__config__

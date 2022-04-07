@@ -39,6 +39,7 @@ namespace p44 {
       invalidIndex, ///< invalid register index
       readOnly, ///< register is read-only
       outOfRange, ///< value provided is out of range
+      invalidInput, ///< register (string) value provided is not valud
       numErrorCodes
     } ErrorCodes;
     static const char *domain() { return "CoreReg"; }
@@ -51,7 +52,9 @@ namespace p44 {
     static constexpr const char* const errNames[numErrorCodes] = {
       "OK",
       "invalidIndex",
-      "readOnly"
+      "readOnly",
+      "outOfRange",
+      "invalidInput",
     };
     #endif // ENABLE_NAMED_ERRORS
   };
@@ -105,7 +108,7 @@ namespace p44 {
 
     /// @param aRegIdx the register index (internal)
     /// @param aData will receive the register's contents
-    /// @param aBuffer memory containing raw SPI register data
+    /// @param aBuffer memory contai  ning raw SPI register data
     /// @param aFirstRegIdx index of first register represented by data in aBuffer
     /// @param aLastRegIdx index of last register represented by data in aBuffer
     /// @return OK or error
@@ -172,6 +175,12 @@ namespace p44 {
     /// @param aRegIdx the register index (internal)
     /// @return json object with all info for the register, or NULL if register does not exist
     JsonObjectPtr getRegisterInfo(RegIndex aRegIdx);
+
+    /// set user facing value into a register
+    /// @param aRegIdx the register index (internal)
+    /// @param aNewValue the new value (usually double, but might also be string)
+    /// @return OK or error, in particular syntax errors and out-of-range
+    ErrorPtr setRegisterValue(RegIndex aRegIdx, JsonObjectPtr aNewValue);
 
     /// get user facing infos for all registers
     /// @return json array with all info for all registers
