@@ -69,10 +69,14 @@ AM_COND_IF([P44_BUILD_WIN], [], [
 
 PKG_PROG_PKG_CONFIG
 
+
 AM_COND_IF([P44_BUILD_WIN], [], [
-  PKG_CHECK_MODULES([JSONC], [json-c >= 0.10 ], [], [
-    AC_MSG_ERROR([$JSON_PKG_ERRORS])
-  ])
+  PKG_CHECK_MODULES([JSONC], [json-c >= 0.13 ],
+    [AC_DEFINE([HAVE_JSONC_VERSION_013], [1], [We have JSONC version 0.13 or later])],
+    [PKG_CHECK_MODULES([JSONC], [json-c >= 0.10 ], [], [
+      AC_MSG_ERROR([$JSON_PKG_ERRORS])
+    ])]
+  )
 
   PKG_CHECK_MODULES([SQLITE3], [sqlite3], [], [
     AC_MSG_ERROR([$SQLITE3_PKG_ERRORS])

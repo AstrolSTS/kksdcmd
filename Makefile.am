@@ -60,7 +60,7 @@ kksdcmd_DEBUG = -D DEBUG=1
 endif
 
 if P44_BUILD_OW
-kksdcmd_PLATFORM = -D P44_BUILD_OW=1
+kksdcmd_PLATFORM = -D P44_BUILD_OW=1 -std=gnu++17
 endif
 
 
