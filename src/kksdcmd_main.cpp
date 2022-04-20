@@ -40,8 +40,8 @@
 #include <math.h>
 
 #define DEFAULT_MODBUS_RTU_PARAMS "115200,8,N,1" // [baud rate][,[bits][,[parity][,[stopbits][,[H]]]]]
-#define DEFAULT_MODBUS_IP_PORT 8765
-#define DEFAULT_MODBUS_CONNECTION "0.0.0.0:8765"
+#define DEFAULT_MODBUS_IP_PORT 502 // standard modbus port
+#define DEFAULT_MODBUS_CONNECTION "0.0.0.0:502"
 
 #define MAINSCRIPT_DEFAULT_FILE_NAME "mainscript.txt"
 
