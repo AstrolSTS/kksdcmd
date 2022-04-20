@@ -305,6 +305,10 @@ public:
 
   // MARK: - ubus API
 
+  #if defined(__APPLE__) && DEBUG
+  #define ENABLE_UBUS 1 // enable for activating syntax check in XCode
+  #endif
+
   #if ENABLE_UBUS
 
   #define MAX_REG 64
@@ -590,28 +594,6 @@ public:
     #endif // ENABLE_HTTP_SCRIPT_FUNCS
     #endif // ENABLE_P44SCRIPT
 
-    /*
-    // FIXME: clean up
-    mCoreSPI = CoreSPIProtoPtr(new CoreSPIProto);
-    SPIDevicePtr dev = SPIManager::sharedManager().getDevice(10, "generic");
-    mCoreSPI->setSpiDevice(dev);
-
-    uint8_t data[3];
-    data[0] = 0xC8;
-    data[1] = 0x00;
-    err = mCoreSPI->writeData(0x0036, 2, data);
-    LOG(LOG_NOTICE, "write: status %s", Error::text(err))
-
-    dev->getBus().setDataToRead(hexToBinaryString("FFFFAB9400003367"));
-    err = mCoreSPI->readData(0x0020, 3, data);
-    string res;
-    res.assign((char *)data, 3);
-    LOG(LOG_NOTICE, "read: %s: status %s", binaryToHexString(res).c_str(), Error::text(err))
-
-    terminateApp(0);
-    */
-
-    // FIXME: clean up
     // Create the register model
     mCoreRegModel = CoreRegModelPtr(new CoreRegModel);
     // Add the SPI
