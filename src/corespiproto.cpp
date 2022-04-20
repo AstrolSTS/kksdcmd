@@ -70,7 +70,8 @@ ErrorPtr CoreSPIProto::writeData(uint16_t aAddr, uint8_t aLen, const uint8_t* aD
 }
 
 
-#define DUMMYDATA 1
+// define this to 1 to get some duzmmy data back instead of error even if real SPI access fails
+#define DUMMYDATA 0
 
 ErrorPtr CoreSPIProto::readData(uint16_t aAddr, uint8_t aLen, uint8_t* aData)
 {
