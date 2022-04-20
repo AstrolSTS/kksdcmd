@@ -314,7 +314,10 @@ ErrorPtr CoreRegModel::readSPIRegRange(RegIndex aFromIdx, RegIndex &aToIdx, uint
   }
   // ridx now is the index+1 of the last register covered
   ErrorPtr err = coreSPIProto().readData(firstRegP->addr, blksz, aBuffer);
-  if (Error::notOK(err)) return err;
+  if (Error::notOK(err)) {
+    err->prefixMessage("Reading from register %s (index %d): ", firstRegP->regname, aFromIdx);
+    return err;
+  }
   aToIdx = ridx-1;
   return ErrorPtr();
 }
@@ -382,7 +385,11 @@ ErrorPtr CoreRegModel::writeSPIReg(RegIndex aRegIdx, int32_t aData)
   const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
   uint8_t buf[4];
   layoutReg(regP, aData, buf);
-  return coreSPIProto().writeData(regP->addr, regP->rawlen, buf);
+  ErrorPtr err = coreSPIProto().writeData(regP->addr, regP->rawlen, buf);
+  if (Error::notOK(err)) {
+    err->prefixMessage("Writing register %s (index %d): ", regP->regname, aRegIdx);
+  }
+  return err;
 }
 
 
@@ -442,13 +449,13 @@ ErrorPtr CoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue, boo
   const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
   if (aUserInput) {
     if (regP->mbinput) {
-      return Error::err<CoreRegError>(CoreRegError::readOnly, "Register index %d is read-only", aRegIdx);
+      return Error::err<CoreRegError>(CoreRegError::readOnly, "Register %s (index %d) is read-only", regP->regname, aRegIdx);
     }
     if (
       !(regP->max==0 && regP->min==0) && // min and max zero means no range limit
       (aValue>regP->max || aValue<regP->min)
     ) {
-      return Error::err<CoreRegError>(CoreRegError::outOfRange, "Value is out of range for register index %d", aRegIdx);
+      return Error::err<CoreRegError>(CoreRegError::outOfRange, "Value is out of range for register %s (index %d)", regP->regname, aRegIdx);
     }
   }
   modbusSlave().setReg(regP->mbreg, regP->mbinput, (uint16_t)aValue); // LSWord
