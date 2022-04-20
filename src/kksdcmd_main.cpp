@@ -419,6 +419,9 @@ public:
                 }
                 else {
                   err = mCoreRegModel->setRegisterValue(regIndex, o);
+                  if (Error::isOK(err)) {
+                    err = mCoreRegModel->updateSPIRegisterFromModbus(regIndex);
+                  }
                 }
               }
             }
