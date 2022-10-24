@@ -328,7 +328,7 @@ static int32_t extractReg(const CoreModuleRegister* aRegP, const uint8_t* aDataP
   uint32_t data = 0;
   // LSB first
   for (int bi=0; bi<nb; bi++) {
-    data = (data<<8) + *(aDataP+bi);
+    data = data + (*(aDataP+bi)<<8*bi);
   }
   // now we have the unsigned portion
   if (aRegP->layout & reg_signed && nb<4) {
