@@ -64,7 +64,6 @@ AM_COND_IF([P44_BUILD_WIN], [], [
   AC_CHECK_LIB(ssl, TLSv1_client_method, [], [AC_MSG_ERROR([Could not find libssl with TLSv1_client_method])])
   AC_CHECK_LIB(crypto, SHA1_Init, [], [AC_MSG_ERROR([Could not find libcrypto with SHA1_Init])])
   AC_CHECK_LIB(sqlite3, sqlite3_open, [], [AC_MSG_ERROR([Could not find sqlite3 with sqlite3_open])])
-  AC_CHECK_LIB(png, png_image_begin_read_from_file, [], [AC_MSG_ERROR([Could not find libpng with png_image_begin_read_from_file supported (>=1.6)])])
 ])
 
 PKG_PROG_PKG_CONFIG
@@ -80,10 +79,6 @@ AM_COND_IF([P44_BUILD_WIN], [], [
 
   PKG_CHECK_MODULES([SQLITE3], [sqlite3], [], [
     AC_MSG_ERROR([$SQLITE3_PKG_ERRORS])
-  ])
-
-  PKG_CHECK_MODULES([PNG], [libpng], [], [
-    AC_MSG_ERROR([$PNG_PKG_ERRORS])
   ])
 ])
 

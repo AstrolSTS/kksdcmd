@@ -66,7 +66,7 @@ endif
 
 # main
 
-kksdcmd_LDADD = ${JSONC_LIBS} ${LIBMODBUS_LIBS} ${PTHREAD_LIBS} ${SQLITE3_LIBS} $(PNG_LIBS)
+kksdcmd_LDADD = ${JSONC_LIBS} ${LIBMODBUS_LIBS} ${PTHREAD_LIBS} ${SQLITE3_LIBS}
 kksdcmd_EXTRACFLAGS = -D NO_SSL_DL=1
 
 
@@ -78,7 +78,6 @@ kksdcmd_CPPFLAGS = \
   ${JSONC_CFLAGS} \
   ${LIBMODBUS_CFLAGS} \
   ${PTHREAD_CFLAGS} \
-  ${PNG_CFLAGS} \
   ${UBUS_FLAGS} \
   ${kksdcmd_EXTRACFLAGS} \
   ${kksdcmd_PLATFORM} \
