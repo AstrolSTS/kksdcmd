@@ -45,7 +45,9 @@ git submodule update
 ```bash
 cd my_projects_dir/kksdcmd
 autoreconf -i
-./configure
+# Note: --enable-embeddedlibmodbus uses our own, modified
+#   libmodbus sources instead of linking the standard libmodbus
+./configure --enable-embeddedlibmodbus
 make kksdcmd
 ```
 	
