@@ -66,7 +66,15 @@ endif
 
 # main
 
-kksdcmd_LDADD = ${JSONC_LIBS} ${LIBMODBUS_LIBS} ${PTHREAD_CFLAGS} ${PTHREAD_LIBS} ${SQLITE3_LIBS}
+kksdcmd_LDADD = \
+	${I2C_LIBS} \
+	${JSONC_LIBS} \
+	${LIBMODBUS_LIBS} \
+	${PTHREAD_CFLAGS} \
+	${PTHREAD_LIBS} \
+  ${UBUS_LIBS} \
+	${SQLITE3_LIBS}
+
 kksdcmd_EXTRACFLAGS = -D NO_SSL_DL=1
 
 
@@ -75,6 +83,7 @@ kksdcmd_CPPFLAGS = \
   -I ${srcdir}/src \
   -I ${srcdir}/src/p44utils/thirdparty/civetweb \
   ${BOOST_CPPFLAGS} \
+  ${I2C_FLAGS} \
   ${JSONC_CFLAGS} \
   ${LIBMODBUS_CFLAGS} \
   ${PTHREAD_CFLAGS} \

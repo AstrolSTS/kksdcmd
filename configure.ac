@@ -48,6 +48,7 @@ AM_CONDITIONAL([P44_BUILD_WIN], [test "x$enable_p44buildwin" = xyes])
 AC_CHECK_LIB(m, atan2, [], [AC_MSG_ERROR([Could not find math lib (m) with atan2])])
 AC_CHECK_LIB(rt, clock_gettime, [], [AC_MSG_ERROR([Could not find rt lib with clock_gettime])])
 AC_CHECK_LIB(dl, dlopen, [], [AC_MSG_ERROR([Could not find libdl with dlopen])])
+AC_CHECK_LIB(i2c, i2c_smbus_write_byte, [], [AC_MSG_ERROR([Could not find libi2c with i2c_smbus_write_byte])])
 
 AM_COND_IF([ENABLE_UBUS], [
   AC_CHECK_LIB(ubus, ubus_connect_ctx, [], [AC_MSG_ERROR([Could not find libubus with ubus_connect_ctx])])
