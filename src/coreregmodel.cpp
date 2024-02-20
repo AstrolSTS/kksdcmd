@@ -111,7 +111,7 @@ const CoreModuleRegister coreModuleRegisterDefs[] = {
   { "current",                   "HF-Strom",                                  0,       255,       0.1,        VALUE_UNIT1(valueUnit_ampere),       36,           1,       reg_uint8,    28,    true   },
   { "voltagePowerStage",         "Spannung an Endstufe (Mittelwert)",         0,       255,       2,          VALUE_UNIT1(valueUnit_volt),         37,           1,       reg_uint8,    29,    true   },
   { "peakVoltagePowerStage",     "Spannung an Endstufe (Peak)",               0,       255,       2,          VALUE_UNIT1(valueUnit_volt),         38,           1,       reg_uint8,    30,    true   },
-  { "pulsWidthPowerState",       "Stellwert Endstufe",                        0,       255,       1,          VALUE_UNIT1(valueUnit_none),         39,           1,       reg_uint8,    31,    true   },
+  { "pulsWidthPowerState",       "Stellwert Endstufe",                        0,       255,       1,          VALUE_UNIT1(valueUnit_percent),      39,           1,       reg_uint8,    31,    true   },
   { "serNr",                     "Serienummer Gerät",                         0,       65535,     1,          VALUE_UNIT1(valueUnit_none),         40,           2,       reg_uint16,   32,    true   },
   
   // - General control (readwrite)
