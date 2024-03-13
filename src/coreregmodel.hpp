@@ -43,7 +43,7 @@ namespace p44 {
       numErrorCodes
     } ErrorCodes;
     static const char *domain() { return "CoreReg"; }
-    virtual const char *getErrorDomain() const { return CoreRegError::domain(); };
+    virtual const char *getErrorDomain() const P44_OVERRIDE { return CoreRegError::domain(); };
     CoreRegError(ErrorCodes aError) : Error(ErrorCode(aError)) {};
     #if ENABLE_NAMED_ERRORS
   protected:
@@ -61,25 +61,14 @@ namespace p44 {
 
 
 
-
   class CoreRegModel : public P44LoggingObj
   {
     typedef P44LoggingObj inherited;
-
-    ModbusSlavePtr mModbusSlave;
-    CoreSPIProtoPtr mCoreSPIProto;
 
   public:
 
     CoreRegModel();
     virtual ~CoreRegModel();
-
-    /// access the modbus slave (mainly to set connection specs)
-    ModbusSlave& modbusSlave();
-
-    /// access the SPI core protocol handler (mainly to set actual SPI device to use)
-    CoreSPIProto& coreSPIProto();
-
 
     typedef uint16_t RegIndex;
 
@@ -97,6 +86,131 @@ namespace p44 {
     ///   invalid index that will fail in all other calls otherwise
     RegIndex regindexFromRegName(const string aRegName);
 
+
+    /// get user facing register value (scaled to real world units) internal register cache
+    /// @param aRegIdx the register index (internal)
+    /// @param aValue receives the real world value
+    /// @return OK or error
+    /// @note no automatic transfer from actual hardware or proxied device happens, just accessing cached register data as-is
+    ErrorPtr getUserValue(RegIndex aRegIdx, double& aValue);
+
+    /// set user facing register value (scaled to real world units) to internal register cache
+    /// @param aRegIdx the register index (internal)
+    /// @param aValue the new value, will be checked against min/max and NOT set if out of range
+    /// @return OK or error, in particular out-of-range
+    /// @note no automatic transfer to actual hardware or proxied device happens, just writing to register cache
+    ErrorPtr setUserValue(RegIndex aRegIdx, double aValue);
+
+    /// get user facing infos for a register
+    /// @param aRegIdx the register index (internal)
+    /// @return json object with all info for the register, or NULL if register does not exist
+    JsonObjectPtr getRegisterInfo(RegIndex aRegIdx);
+
+    /// set user facing value into a register
+    /// @param aRegIdx the register index (internal)
+    /// @param aNewValue the new value (usually double, but might also be string)
+    /// @return OK or error, in particular syntax errors and out-of-range
+    ErrorPtr setRegisterValue(RegIndex aRegIdx, JsonObjectPtr aNewValue);
+
+    /// get user facing infos for all registers
+    /// @return json array with all info for all registers
+    JsonObjectPtr getRegisterInfos();
+
+    /// refresh the entire cache (all registers)
+    ErrorPtr updateRegisterCache();
+
+
+    /// @name register model and underlying hardware access implementation
+    /// @{
+
+    /// get engineering register value (with correct sign) from internal register cache
+    /// @param aRegIdx the register index (internal)
+    /// @param aValue receives the (possibly signed) engineering value
+    /// @return OK or error
+    /// @note no automatic transfer from actual hardware or proxied device happens, just accessing cached register data as-is
+    virtual ErrorPtr getEngineeringValue(RegIndex aRegIdx, int32_t& aValue) = 0;
+
+    /// set engineering register value (with correct sign) to internal register cache
+    /// @param aRegIdx the register index (internal)
+    /// @param aValue the new engineering value, if aUserInput==true, this will be checked against min/max and NOT set if out of range
+    /// @param aUserInput if set, aValue is considered user input and will be rejected when the register is read-only or value is out of range
+    /// @return OK or error, in particular out-of-range
+    /// @note no automatic transfer to actual hardware or proxied device happens, just writing to register cache
+    virtual ErrorPtr setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput) = 0;
+
+    /// update register cache from local or proxied hardware
+    /// @param aFromIdx first register index to read (internal)
+    /// @param aToIdx last register to read
+    /// @return OK or error
+    virtual ErrorPtr updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx) = 0;
+
+    /// update local or proxied hardware from register cache
+    /// @param aRegIdx register index to write (internal)
+    /// @return OK or error
+    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aRegIdx) = 0;
+
+    /// @}
+
+  protected:
+
+    ErrorPtr checkUserInput(RegIndex aRegIdx, int32_t aValue);
+
+  };
+  typedef boost::intrusive_ptr<CoreRegModel> CoreRegModelPtr;
+
+
+
+  class SPICoreRegModel : public CoreRegModel
+  {
+    typedef CoreRegModel inherited;
+
+    ModbusSlavePtr mModbusSlave; // modbus exposure of local SPI registers
+    CoreSPIProtoPtr mCoreSPIProto; // SPI protocol for accessing local registers
+
+  public:
+
+    SPICoreRegModel();
+    virtual ~SPICoreRegModel();
+
+    /// access the modbus slave (mainly to set connection specs)
+    ModbusSlave& modbusSlave();
+
+    /// access the SPI core protocol handler (mainly to set actual SPI device to use)
+    CoreSPIProto& coreSPIProto();
+
+    /// @name register model and underlying hardware access implementation
+    /// @{
+
+    /// get engineering register value (with correct sign) from internal register cache
+    /// @param aRegIdx the register index (internal)
+    /// @param aValue receives the (possibly signed) engineering value
+    /// @return OK or error
+    /// @note no automatic transfer from actual hardware or proxied device happens, just accessing cached register data as-is
+    virtual ErrorPtr getEngineeringValue(RegIndex aRegIdx, int32_t& aValue) P44_OVERRIDE;
+
+
+    /// set engineering register value (with correct sign) to internal register cache
+    /// @param aRegIdx the register index (internal)
+    /// @param aValue the new engineering value, if aUserInput==true, this will be checked against min/max and NOT set if out of range
+    /// @param aUserInput if set, aValue is considered user input and will be rejected when the register is read-only or value is out of range
+    /// @return OK or error, in particular out-of-range
+    /// @note no automatic transfer to actual hardware or proxied device happens, just writing to register cache
+    virtual ErrorPtr setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput) P44_OVERRIDE;
+
+    /// update register cache from local or proxied hardware
+    /// @param aFromIdx first register index to read (internal)
+    /// @param aToIdx last register to read
+    /// @return OK or error
+    virtual ErrorPtr updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx) P44_OVERRIDE;
+
+    /// update local or proxied hardware from register cache
+    /// @param aRegIdx register index to write (internal)
+    /// @return OK or error
+    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aRegIdx) P44_OVERRIDE;
+
+    /// @}
+
+  private:
 
     /// read a range of SPI registers into presented buffer space
     /// @param aFromIdx first register index to read (internal)
@@ -127,67 +241,68 @@ namespace p44 {
     /// @return OK or error
     ErrorPtr writeSPIReg(RegIndex aRegIdx, int32_t aData);
 
-
-    /// update modbus registers from SPI registers
-    /// @param aFromIdx first register index to read (internal)
-    /// @param aToIdx last register to read
-    /// @return OK or error
-    ErrorPtr updateModbusRegistersFromSPI(RegIndex aFromIdx, RegIndex aToIdx);
-
-    /// update SPI register from modbus register
-    /// @param aRegIdx register index to write (internal)
-    /// @return OK or error
-    ErrorPtr updateSPIRegisterFromModbus(RegIndex aRegIdx);
+  };
+  typedef boost::intrusive_ptr<SPICoreRegModel> SPICoreRegModelPtr;
 
 
 
-    /// get engineering register value (with correct sign) from modbus registers
+  class ProxyCoreRegModel : public CoreRegModel
+  {
+    typedef CoreRegModel inherited;
+
+    ModbusMasterPtr mModbusMaster;
+
+    typedef std::vector<int32_t> RegisterValueVector; // simple register value storage
+    RegisterValueVector mRegisterValues;
+
+  public:
+
+    ProxyCoreRegModel();
+    virtual ~ProxyCoreRegModel();
+
+    /// access the modbus slave (mainly to set connection specs)
+    ModbusMaster& modbusMaster();
+
+
+    /// @name register model and underlying hardware access implementation
+    /// @{
+
+    /// get engineering register value (with correct sign) from internal register cache
     /// @param aRegIdx the register index (internal)
     /// @param aValue receives the (possibly signed) engineering value
     /// @return OK or error
-    /// @note no automatic transfer from actual SPI registers happens, just accessing modbus register data as-is
-    ErrorPtr getEngineeringValue(RegIndex aRegIdx, int32_t& aValue);
+    /// @note no automatic transfer from actual hardware or proxied device happens, just accessing cached register data as-is
+    virtual ErrorPtr getEngineeringValue(RegIndex aRegIdx, int32_t& aValue) P44_OVERRIDE;
 
-    /// set engineering register value (with correct sign) to modbus registers
+    /// set engineering register value (with correct sign) to internal register cache
     /// @param aRegIdx the register index (internal)
     /// @param aValue the new engineering value, if aUserInput==true, this will be checked against min/max and NOT set if out of range
     /// @param aUserInput if set, aValue is considered user input and will be rejected when the register is read-only or value is out of range
     /// @return OK or error, in particular out-of-range
-    /// @note no automatic transfer to actual SPI registers, just writing to modbus register data
-    ErrorPtr setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput);
+    /// @note no automatic transfer to actual hardware or proxied device happens, just writing to register cache
+    virtual ErrorPtr setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput) P44_OVERRIDE;
 
-
-    /// get user facing register value (scaled to real world units) from modbus registers
-    /// @param aRegIdx the register index (internal)
-    /// @param aValue receives the real world value
+    /// update register cache from local or proxied hardware
+    /// @param aFromIdx first register index to read (internal)
+    /// @param aToIdx last register to read
     /// @return OK or error
-    /// @note no automatic transfer from actual SPI registers happens, just accessing modbus register data as-is
-    ErrorPtr getUserValue(RegIndex aRegIdx, double& aValue);
+    virtual ErrorPtr updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx) P44_OVERRIDE;
 
-    /// set user facing register value (scaled to real world units) to modbus registers
-    /// @param aRegIdx the register index (internal)
-    /// @param aValue the new value, will be checked against min/max and NOT set if out of range
-    /// @return OK or error, in particular out-of-range
-    /// @note no automatic transfer to actual SPI registers, just writing to modbus register data
-    ErrorPtr setUserValue(RegIndex aRegIdx, double aValue);
+    /// update local or proxied hardware from register cache
+    /// @param aRegIdx register index to write (internal)
+    /// @return OK or error
+    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aRegIdx) P44_OVERRIDE;
 
-    /// get user facing infos for a register
-    /// @param aRegIdx the register index (internal)
-    /// @return json object with all info for the register, or NULL if register does not exist
-    JsonObjectPtr getRegisterInfo(RegIndex aRegIdx);
+    /// @}
 
-    /// set user facing value into a register
-    /// @param aRegIdx the register index (internal)
-    /// @param aNewValue the new value (usually double, but might also be string)
-    /// @return OK or error, in particular syntax errors and out-of-range
-    ErrorPtr setRegisterValue(RegIndex aRegIdx, JsonObjectPtr aNewValue);
+  private:
 
-    /// get user facing infos for all registers
-    /// @return json array with all info for all registers
-    JsonObjectPtr getRegisterInfos();
+    ErrorPtr modbusReadRegisterSequence(RegIndex aFromIdx, int aNumModbusRegs);
 
   };
-  typedef boost::intrusive_ptr<CoreRegModel> CoreRegModelPtr;
+  typedef boost::intrusive_ptr<ProxyCoreRegModel> ProxyCoreRegModelPtr;
+
+
 
 
 } // namespace p44

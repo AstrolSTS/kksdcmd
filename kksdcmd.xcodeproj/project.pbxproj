@@ -59,6 +59,8 @@
 		ED8A99A82020D17B0069EBF6 /* civetweb.c in Sources */ = {isa = PBXBuildFile; fileRef = ED8A99A12020D17A0069EBF6 /* civetweb.c */; };
 		ED9D3C742279D6E1009B43A8 /* serialcomm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDB284481733B59500EAE5DE /* serialcomm.cpp */; };
 		EDAF1B402624D4CD0026CE11 /* extutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDEAEBD126246A5E00E02E78 /* extutils.cpp */; };
+		EDAF9AD62BA22CB80012B33F /* libssl.3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = EDAF9AD42BA22CB80012B33F /* libssl.3.dylib */; };
+		EDAF9AD72BA22CB80012B33F /* libcrypto.3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = EDAF9AD52BA22CB80012B33F /* libcrypto.3.dylib */; };
 		EDB5B3F523226DBE00A0C84D /* timeutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B3EC23226DBA00A0C84D /* timeutils.cpp */; };
 		EDB5B3F623226DBE00A0C84D /* analogio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B3ED23226DBB00A0C84D /* analogio.cpp */; };
 		EDB5B3F823226DBE00A0C84D /* pwm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B3F023226DBC00A0C84D /* pwm.cpp */; };
@@ -69,10 +71,7 @@
 		EDDEE88A17FC6ED400A65599 /* i2c.cpp in Sources */ = {isa = PBXBuildFile; fileRef = ED36999C178DA01D00376405 /* i2c.cpp */; };
 		EDDEE88B17FC6EDE00A65599 /* consolekey.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDC1166C177EDDDF00F27115 /* consolekey.cpp */; };
 		EDEAEBCC261CD57700E02E78 /* p44script.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDEAEBA7261605DF00E02E78 /* p44script.cpp */; };
-		EDEAEBCF261E223000E02E78 /* libcrypto.1.1.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = EDEAEBCD261E223000E02E78 /* libcrypto.1.1.dylib */; };
-		EDEAEBD0261E223000E02E78 /* libssl.1.1.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = EDEAEBCE261E223000E02E78 /* libssl.1.1.dylib */; };
 		EDEAEBD3262472F400E02E78 /* extutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDEAEBD126246A5E00E02E78 /* extutils.cpp */; };
-		EDEAEBD72624AEDE00E02E78 /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ED16C41E22B27590003F4276 /* SDL2.framework */; };
 		EDF1AF261D0D98D000302F77 /* spi.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EDF1AF241D0D98D000302F77 /* spi.cpp */; };
 /* End PBXBuildFile section */
 
@@ -210,6 +209,8 @@
 		ED8A99A92020D2070069EBF6 /* configure.ac */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = configure.ac; sourceTree = "<group>"; };
 		ED8A99AA2020D2070069EBF6 /* Makefile.am */ = {isa = PBXFileReference; explicitFileType = sourcecode.make; fileEncoding = 4; path = Makefile.am; sourceTree = "<group>"; };
 		ED93DFF21D256BD400D6AF0A /* p44utils_common.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = p44utils_common.hpp; sourceTree = "<group>"; };
+		EDAF9AD42BA22CB80012B33F /* libssl.3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libssl.3.dylib; path = "../../../../../../opt/homebrew/Cellar/openssl@3/3.1.3/lib/libssl.3.dylib"; sourceTree = "<group>"; };
+		EDAF9AD52BA22CB80012B33F /* libcrypto.3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.3.dylib; path = "../../../../../../opt/homebrew/Cellar/openssl@3/3.1.3/lib/libcrypto.3.dylib"; sourceTree = "<group>"; };
 		EDB1892F17D4B7330088B6A5 /* ssdpsearch.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ssdpsearch.cpp; sourceTree = "<group>"; };
 		EDB1893017D4B7330088B6A5 /* ssdpsearch.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = ssdpsearch.hpp; sourceTree = "<group>"; };
 		EDB284421732965700EAE5DE /* operationqueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = operationqueue.cpp; sourceTree = "<group>"; };
@@ -249,9 +250,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EDEAEBCF261E223000E02E78 /* libcrypto.1.1.dylib in Frameworks */,
-				EDEAEBD0261E223000E02E78 /* libssl.1.1.dylib in Frameworks */,
-				EDEAEBD72624AEDE00E02E78 /* SDL2.framework in Frameworks */,
+				EDAF9AD62BA22CB80012B33F /* libssl.3.dylib in Frameworks */,
+				EDAF9AD72BA22CB80012B33F /* libcrypto.3.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -373,6 +373,8 @@
 		ED4D033C1F83EAFD00BF1820 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				EDAF9AD52BA22CB80012B33F /* libcrypto.3.dylib */,
+				EDAF9AD42BA22CB80012B33F /* libssl.3.dylib */,
 				EDEAEBCD261E223000E02E78 /* libcrypto.1.1.dylib */,
 				EDEAEBCE261E223000E02E78 /* libssl.1.1.dylib */,
 				ED16C41E22B27590003F4276 /* SDL2.framework */,
@@ -635,14 +637,15 @@
 					"$(inherited)",
 					"/usr/local/include/json-c",
 					/usr/local/opt/openssl/include,
-					"/Volumes/CaseSens/openwrt/staging_dir/target-mipsel_24kc_musl/usr/include",
-					"/Volumes/CaseSens/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt76x8/linux-4.14.95/include",
+					"/Volumes/CaseSens/openwrt-2/staging_dir/target-mipsel_24kc_musl/usr/include",
+					"/Volumes/CaseSens/openwrt-2/build_dir/target-mipsel_24kc_musl/linux-ramips_mt76x8/linux-4.14.95/include",
 					.,
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					/usr/local/opt/openssl/lib,
 					"/usr/local/Cellar/openssl@1.1/1.1.1h/lib",
+					"/opt/homebrew/Cellar/openssl@3/3.1.3/lib",
 				);
 				OTHER_LDFLAGS = (
 					"${inherited}",
@@ -679,14 +682,15 @@
 					"$(inherited)",
 					"/usr/local/include/json-c",
 					/usr/local/opt/openssl/include,
-					"/Volumes/CaseSens/openwrt/staging_dir/target-mipsel_24kc_musl/usr/include",
-					"/Volumes/CaseSens/openwrt/build_dir/target-mipsel_24kc_musl/linux-ramips_mt76x8/linux-4.14.95/include",
+					"/Volumes/CaseSens/openwrt-2/staging_dir/target-mipsel_24kc_musl/usr/include",
+					"/Volumes/CaseSens/openwrt-2/build_dir/target-mipsel_24kc_musl/linux-ramips_mt76x8/linux-4.14.95/include",
 					.,
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					/usr/local/opt/openssl/lib,
 					"/usr/local/Cellar/openssl@1.1/1.1.1h/lib",
+					"/opt/homebrew/Cellar/openssl@3/3.1.3/lib",
 				);
 				OTHER_LDFLAGS = (
 					"${inherited}",

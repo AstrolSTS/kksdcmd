@@ -75,7 +75,7 @@ const int mbreg_first = 1;
 const int mb_numregs = 233-mbreg_first+1;
 // - Read-only (input) registers
 const int mbinp_first = 1;
-const int mb_numinps = 250-mbreg_first+1;
+const int mb_numinps = 250-mbinp_first+1;
 
 // Core module register definitions
 const CoreModuleRegister coreModuleRegisterDefs[] = {
@@ -231,38 +231,15 @@ const CoreModuleRegister coreModuleRegisterDefs[] = {
 static const int numModuleRegisters = sizeof(coreModuleRegisterDefs)/sizeof(CoreModuleRegister);
 
 
+// MARK: - CoreRegModel
+
 CoreRegModel::CoreRegModel()
 {
-  // set up register model
-  modbusSlave().setRegisterModel(
-    0, 0,
-    0, 0,
-    mbreg_first, mb_numregs,
-    mbinp_first, mb_numinps
-  );
 }
 
 
 CoreRegModel::~CoreRegModel()
 {
-}
-
-
-ModbusSlave& CoreRegModel::modbusSlave()
-{
-  if (!mModbusSlave) {
-    mModbusSlave = new ModbusSlave();
-  }
-  return *mModbusSlave.get();
-}
-
-
-CoreSPIProto& CoreRegModel::coreSPIProto()
-{
-  if (!mCoreSPIProto) {
-    mCoreSPIProto = new CoreSPIProto();
-  }
-  return *mCoreSPIProto.get();
 }
 
 
@@ -296,176 +273,24 @@ CoreRegModel::RegIndex CoreRegModel::regindexFromRegName(const string aRegName)
 }
 
 
-
-ErrorPtr CoreRegModel::readSPIRegRange(RegIndex aFromIdx, RegIndex &aToIdx, uint8_t* aBuffer, size_t aBufSize)
+ErrorPtr CoreRegModel::updateRegisterCache()
 {
-  if (aFromIdx>=numModuleRegisters) {
-    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
-  }
-  const CoreModuleRegister* firstRegP = &coreModuleRegisterDefs[aFromIdx];
-  const CoreModuleRegister* regP = firstRegP;
-  size_t blksz = 0;
-  RegIndex ridx = aFromIdx;
-  // find contiguous block to read
-  while (ridx<=aToIdx && regP->rawlen+blksz<=aBufSize) {
-    blksz+=regP->rawlen;
-    ridx++;
-    if (ridx<=aToIdx && regP->addr+regP->rawlen!=(regP+1)->addr) {
-      // next register not contiguous in SPI address space
-      regP = NULL;
-      break;
-    }
-    regP++;
-  }
-  // ridx now is the index+1 of the last register covered
-  ErrorPtr err = coreSPIProto().readData(firstRegP->addr, blksz, aBuffer);
-  if (Error::notOK(err)) {
-    err->prefixMessage("Reading from register %s (index %d): ", firstRegP->regname, aFromIdx);
-    return err;
-  }
-  aToIdx = ridx-1;
-  return ErrorPtr();
-}
-
-static int32_t extractReg(const CoreModuleRegister* aRegP, const uint8_t* aDataP)
-{
-  int nb = aRegP->layout & reg_bytecount_mask;
-  uint32_t data = 0;
-  // LSB first
-  for (int bi=0; bi<nb; bi++) {
-    data = data + (*(aDataP+bi)<<8*bi);
-  }
-  // now we have the unsigned portion
-  if (aRegP->layout & reg_signed && nb<4) {
-    if (*(aDataP+nb-1) & 0x80) {
-      data |= (0xFFFFFFFF<<nb*8); // extend sign bit
-    }
-  }
-  return (int32_t)data;
+  // simply update all registers
+  return updateRegisterCacheFromHardware(0, maxReg());
 }
 
 
-
-ErrorPtr CoreRegModel::readRegFromBuffer(RegIndex aRegIdx, int32_t &aData, uint8_t* aBuffer, RegIndex aFirstRegIdx, RegIndex aLastRegIdx)
+ErrorPtr CoreRegModel::checkUserInput(RegIndex aRegIdx, int32_t aValue)
 {
-  if (aLastRegIdx>=numModuleRegisters || aRegIdx>aLastRegIdx || aRegIdx<aFirstRegIdx) {
-    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
-  }
   const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
-  const uint8_t* dataP = aBuffer + (regP->addr-coreModuleRegisterDefs[aFirstRegIdx].addr);
-  aData = extractReg(regP, dataP);
-  return ErrorPtr();
-}
-
-
-ErrorPtr CoreRegModel::readSPIReg(RegIndex aRegIdx, int32_t &aData)
-{
-  uint8_t buf[4];
-  ErrorPtr err = readSPIRegRange(aRegIdx, aRegIdx, buf, 4);
-  if (Error::isOK(err)) {
-    err = readRegFromBuffer(aRegIdx, aData, buf, aRegIdx, aRegIdx);
+  if (regP->mbinput) {
+    return Error::err<CoreRegError>(CoreRegError::readOnly, "Register %s (index %d) is read-only", regP->regname, aRegIdx);
   }
-  return err;
-}
-
-
-
-static void layoutReg(const CoreModuleRegister* aRegP, const int32_t aData, uint8_t* aDataP)
-{
-  int nb = aRegP->layout & reg_bytecount_mask;
-  uint32_t data = (uint32_t)aData;
-  // LSB first
-  for (int bi=0; bi<nb; bi++) {
-    *aDataP++ = data & 0xFF;
-    data >>= 8;
-  }
-}
-
-
-ErrorPtr CoreRegModel::writeSPIReg(RegIndex aRegIdx, int32_t aData)
-{
-  if (aRegIdx>=numModuleRegisters) {
-    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
-  }
-  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
-  uint8_t buf[4];
-  layoutReg(regP, aData, buf);
-  ErrorPtr err = coreSPIProto().writeData(regP->addr, regP->rawlen, buf);
-  if (Error::notOK(err)) {
-    err->prefixMessage("Writing register %s (index %d): ", regP->regname, aRegIdx);
-  }
-  return err;
-}
-
-
-
-ErrorPtr CoreRegModel::updateModbusRegistersFromSPI(RegIndex aFromIdx, RegIndex aToIdx)
-{
-  ErrorPtr err;
-  const size_t bufsz = numModuleRegisters*3; // enough for any range
-  uint8_t buf[bufsz];
-  while (aFromIdx<=aToIdx) {
-    RegIndex t = aToIdx;
-    err = readSPIRegRange(aFromIdx, t, buf, bufsz);
-    if (Error::notOK(err)) return err;
-    for (RegIndex i=aFromIdx; i<=t; i++) {
-      int32_t data;
-      err = readRegFromBuffer(i, data, buf, aFromIdx, t);
-      if (Error::notOK(err)) return err;
-      err = setEngineeringValue(i, data, false); // not user input, allow setting input registers and out-of-bounds values
-    }
-    aFromIdx = t+1;
-  }
-  return err;
-}
-
-
-ErrorPtr CoreRegModel::updateSPIRegisterFromModbus(RegIndex aRegIdx)
-{
-  int32_t data;
-  ErrorPtr err = getEngineeringValue(aRegIdx, data);
-  if (Error::isOK(err)) {
-    err = writeSPIReg(aRegIdx, data);
-  }
-  return err;
-}
-
-
-ErrorPtr CoreRegModel::getEngineeringValue(RegIndex aRegIdx, int32_t& aValue)
-{
-  if (aRegIdx>=numModuleRegisters) {
-    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
-  }
-  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
-  uint32_t data = modbusSlave().getReg(regP->mbreg, regP->mbinput); // LSWord
-  if ((regP->layout&reg_bytecount_mask)>2) {
-    data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+1, regP->mbinput))<<16; // MSWord
-  }
-  aValue = data;
-  return ErrorPtr();
-}
-
-
-ErrorPtr CoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput)
-{
-  if (aRegIdx>=numModuleRegisters) {
-    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
-  }
-  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
-  if (aUserInput) {
-    if (regP->mbinput) {
-      return Error::err<CoreRegError>(CoreRegError::readOnly, "Register %s (index %d) is read-only", regP->regname, aRegIdx);
-    }
-    if (
-      !(regP->max==0 && regP->min==0) && // min and max zero means no range limit
-      (aValue>regP->max || aValue<regP->min)
-    ) {
-      return Error::err<CoreRegError>(CoreRegError::outOfRange, "Value is out of range for register %s (index %d)", regP->regname, aRegIdx);
-    }
-  }
-  modbusSlave().setReg(regP->mbreg, regP->mbinput, (uint16_t)aValue); // LSWord
-  if ((regP->layout&reg_bytecount_mask)>2) {
-    modbusSlave().setReg(regP->mbreg+1, regP->mbinput, (uint16_t)(aValue>>16)); // MSWord
+  if (
+    !(regP->max==0 && regP->min==0) && // min and max zero means no range limit
+    (aValue>regP->max || aValue<regP->min)
+  ) {
+    return Error::err<CoreRegError>(CoreRegError::outOfRange, "Value is out of range for register %s (index %d)", regP->regname, aRegIdx);
   }
   return ErrorPtr();
 }
@@ -552,3 +377,372 @@ JsonObjectPtr CoreRegModel::getRegisterInfos()
   }
   return infos;
 }
+
+
+
+// MARK: - SPICoreRegModel
+
+SPICoreRegModel::SPICoreRegModel()
+{
+  // set up register model
+  modbusSlave().setRegisterModel(
+    0, 0,
+    0, 0,
+    mbreg_first, mb_numregs,
+    mbinp_first, mb_numinps
+  );
+}
+
+
+SPICoreRegModel::~SPICoreRegModel()
+{
+}
+
+
+ModbusSlave& SPICoreRegModel::modbusSlave()
+{
+  if (!mModbusSlave) {
+    mModbusSlave = new ModbusSlave();
+  }
+  return *mModbusSlave.get();
+}
+
+
+CoreSPIProto& SPICoreRegModel::coreSPIProto()
+{
+  if (!mCoreSPIProto) {
+    mCoreSPIProto = new CoreSPIProto();
+  }
+  return *mCoreSPIProto.get();
+}
+
+
+ErrorPtr SPICoreRegModel::readSPIRegRange(RegIndex aFromIdx, RegIndex &aToIdx, uint8_t* aBuffer, size_t aBufSize)
+{
+  if (aFromIdx>=numModuleRegisters) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  const CoreModuleRegister* firstRegP = &coreModuleRegisterDefs[aFromIdx];
+  const CoreModuleRegister* regP = firstRegP;
+  size_t blksz = 0;
+  RegIndex ridx = aFromIdx;
+  // find contiguous block to read
+  while (ridx<=aToIdx && regP->rawlen+blksz<=aBufSize) {
+    blksz+=regP->rawlen;
+    ridx++;
+    if (ridx<=aToIdx && regP->addr+regP->rawlen!=(regP+1)->addr) {
+      // next register not contiguous in SPI address space
+      regP = NULL;
+      break;
+    }
+    regP++;
+  }
+  // ridx now is the index+1 of the last register covered
+  ErrorPtr err = coreSPIProto().readData(firstRegP->addr, blksz, aBuffer);
+  if (Error::notOK(err)) {
+    err->prefixMessage("Reading from register %s (index %d): ", firstRegP->regname, aFromIdx);
+    return err;
+  }
+  aToIdx = ridx-1;
+  return ErrorPtr();
+}
+
+
+static int32_t extractReg(const CoreModuleRegister* aRegP, const uint8_t* aDataP)
+{
+  int nb = aRegP->layout & reg_bytecount_mask;
+  uint32_t data = 0;
+  // LSB first
+  for (int bi=0; bi<nb; bi++) {
+    data = data + (*(aDataP+bi)<<8*bi);
+  }
+  // now we have the unsigned portion
+  if (aRegP->layout & reg_signed && nb<4) {
+    if (*(aDataP+nb-1) & 0x80) {
+      data |= (0xFFFFFFFF<<nb*8); // extend sign bit
+    }
+  }
+  return (int32_t)data;
+}
+
+
+ErrorPtr SPICoreRegModel::readRegFromBuffer(RegIndex aRegIdx, int32_t &aData, uint8_t* aBuffer, RegIndex aFirstRegIdx, RegIndex aLastRegIdx)
+{
+  if (aLastRegIdx>=numModuleRegisters || aRegIdx>aLastRegIdx || aRegIdx<aFirstRegIdx) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
+  const uint8_t* dataP = aBuffer + (regP->addr-coreModuleRegisterDefs[aFirstRegIdx].addr);
+  aData = extractReg(regP, dataP);
+  return ErrorPtr();
+}
+
+
+ErrorPtr SPICoreRegModel::readSPIReg(RegIndex aRegIdx, int32_t &aData)
+{
+  uint8_t buf[4];
+  ErrorPtr err = readSPIRegRange(aRegIdx, aRegIdx, buf, 4);
+  if (Error::isOK(err)) {
+    err = readRegFromBuffer(aRegIdx, aData, buf, aRegIdx, aRegIdx);
+  }
+  return err;
+}
+
+
+static void layoutReg(const CoreModuleRegister* aRegP, const int32_t aData, uint8_t* aDataP)
+{
+  int nb = aRegP->layout & reg_bytecount_mask;
+  uint32_t data = (uint32_t)aData;
+  // LSB first
+  for (int bi=0; bi<nb; bi++) {
+    *aDataP++ = data & 0xFF;
+    data >>= 8;
+  }
+}
+
+
+ErrorPtr SPICoreRegModel::writeSPIReg(RegIndex aRegIdx, int32_t aData)
+{
+  if (aRegIdx>=numModuleRegisters) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
+  uint8_t buf[4];
+  layoutReg(regP, aData, buf);
+  ErrorPtr err = coreSPIProto().writeData(regP->addr, regP->rawlen, buf);
+  if (Error::notOK(err)) {
+    err->prefixMessage("Writing register %s (index %d): ", regP->regname, aRegIdx);
+  }
+  return err;
+}
+
+
+ErrorPtr SPICoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx)
+{
+  ErrorPtr err;
+  const size_t bufsz = numModuleRegisters*3; // enough for any range
+  uint8_t buf[bufsz];
+  while (aFromIdx<=aToIdx) {
+    RegIndex t = aToIdx;
+    err = readSPIRegRange(aFromIdx, t, buf, bufsz);
+    if (Error::notOK(err)) return err;
+    for (RegIndex i=aFromIdx; i<=t; i++) {
+      int32_t data;
+      err = readRegFromBuffer(i, data, buf, aFromIdx, t);
+      if (Error::notOK(err)) return err;
+      err = setEngineeringValue(i, data, false); // not user input, allow setting input registers and out-of-bounds values
+    }
+    aFromIdx = t+1;
+  }
+  return err;
+}
+
+
+ErrorPtr SPICoreRegModel::updateHardwareFromRegisterCache(RegIndex aRegIdx)
+{
+  int32_t data;
+  ErrorPtr err = getEngineeringValue(aRegIdx, data);
+  if (Error::isOK(err)) {
+    err = writeSPIReg(aRegIdx, data);
+  }
+  return err;
+}
+
+
+ErrorPtr SPICoreRegModel::getEngineeringValue(RegIndex aRegIdx, int32_t& aValue)
+{
+  if (aRegIdx>=numModuleRegisters) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
+  uint32_t data = modbusSlave().getReg(regP->mbreg, regP->mbinput); // LSWord
+  if ((regP->layout&reg_bytecount_mask)>2) {
+    data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+1, regP->mbinput))<<16; // MSWord
+  }
+  aValue = data;
+  return ErrorPtr();
+}
+
+
+ErrorPtr SPICoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput)
+{
+  ErrorPtr err;
+
+  if (aRegIdx>=numModuleRegisters) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  if (aUserInput) {
+    err = checkUserInput(aRegIdx, aValue);
+  }
+  if (Error::isOK(err)) {
+    const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
+    modbusSlave().setReg(regP->mbreg, regP->mbinput, (uint16_t)aValue); // LSWord
+    if ((regP->layout&reg_bytecount_mask)>2) {
+      modbusSlave().setReg(regP->mbreg+1, regP->mbinput, (uint16_t)(aValue>>16)); // MSWord
+    }
+  }
+  return err;
+}
+
+// MARK: - ProxyCoreRegModel
+
+
+ProxyCoreRegModel::ProxyCoreRegModel()
+{
+  // initialize register value cache with all zeroes
+  mRegisterValues.reserve(maxReg()+1);
+  for (int i=0; i<=maxReg(); i++) {
+    mRegisterValues.push_back(0);
+  }
+}
+
+
+ProxyCoreRegModel::~ProxyCoreRegModel()
+{
+}
+
+
+ModbusMaster& ProxyCoreRegModel::modbusMaster()
+{
+  if (!mModbusMaster) {
+    mModbusMaster = new ModbusMaster();
+  }
+  return *mModbusMaster.get();
+}
+
+
+ErrorPtr ProxyCoreRegModel::getEngineeringValue(RegIndex aRegIdx, int32_t& aValue)
+{
+  if (aRegIdx>=numModuleRegisters || aRegIdx>=mRegisterValues.size()) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  if (aRegIdx>=mRegisterValues.size()) aValue = 0; // should not happen: return 0 for not yet cached values
+  else aValue = mRegisterValues[aRegIdx];
+  return ErrorPtr();
+}
+
+
+ErrorPtr ProxyCoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue, bool aUserInput)
+{
+  ErrorPtr err;
+
+  if (aRegIdx>=numModuleRegisters || aRegIdx>=mRegisterValues.size()) {
+    return Error::err<CoreRegError>(CoreRegError::invalidIndex);
+  }
+  if (aUserInput) {
+    err = checkUserInput(aRegIdx, aValue);
+  }
+  if (Error::isOK(err)) {
+    mRegisterValues[aRegIdx] = aValue;
+  }
+  return err;
+}
+
+
+ErrorPtr ProxyCoreRegModel::modbusReadRegisterSequence(RegIndex aFromIdx, int aNumModbusRegs)
+{
+  ErrorPtr err;
+  uint16_t* regValuesP = new uint16_t[aNumModbusRegs]; // double size because some could be 32bit!
+  const CoreModuleRegister* firstRegP = &coreModuleRegisterDefs[aFromIdx];
+  DBGLOG(LOG_INFO, "modbusReadRegisterSequence: from %s(%d), mbreg=%d(%s), num_mbregs=%d", firstRegP->regname, aFromIdx, firstRegP->mbreg, firstRegP->mbinput ? "RO" : "RW", aNumModbusRegs);
+  err = modbusMaster().readRegisters(firstRegP->mbreg, aNumModbusRegs, regValuesP, firstRegP->mbinput);
+  RegIndex reg = aFromIdx; // must count these separately because there might be 32-bit registers (with 2 modbus regs)
+  if (Error::isOK(err)) {
+    // copy into our internal cache
+    for (RegIndex i = 0; i<aNumModbusRegs; i++) {
+      const CoreModuleRegister* regP = &coreModuleRegisterDefs[aFromIdx+i];
+      int32_t val;
+      if ((regP->layout&reg_bytecount_mask)>2) {
+        // 32bit: first 16bit are LSWord, second 16bit are MSWord
+        val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<16)); // sign comes from highest bit MSWord
+        i++;
+      }
+      else if (regP->layout&reg_signed) {
+        // 16bit signed
+        val = (int16_t)regValuesP[i]; // sign will be extended to 32bit
+      }
+      else {
+        // 16bit unsigned
+        val = (uint16_t)regValuesP[i]; // no sign extension!
+      }
+      setEngineeringValue(reg, val, false);
+      reg++;
+    }
+  }
+  delete[] regValuesP;
+  return err;
+}
+
+
+
+
+ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx)
+{
+  ErrorPtr err;
+
+  uint16_t last_mbreg; // none
+  RegIndex seqstart; // first register index for a multi-register modbus read call
+  bool inp_mbregs; // is current sequence an input register?
+  uint16_t num_mbregs = 0; // number of registers accumulated
+
+  for (RegIndex reg = aFromIdx; reg<=aToIdx; reg++) {
+    const CoreModuleRegister* regP = &coreModuleRegisterDefs[reg];
+    if (num_mbregs>0) {
+      // possible continuation of sequence
+      if (regP->mbinput==inp_mbregs && regP->mbreg==last_mbreg+1) {
+        // extend sequence
+        num_mbregs++;
+        if ((regP->layout&reg_bytecount_mask)>2) {
+          // read next modbus register (MSWord) as well when value is >16bit
+          num_mbregs++;
+          last_mbreg++; // sequence must check that
+        }
+      }
+      else {
+        // previous sequence ends, actually get values via modbus
+        err = modbusReadRegisterSequence(seqstart, num_mbregs);
+        num_mbregs = 0; // reset
+        if (Error::notOK(err)) break;
+      }
+    }
+    if (num_mbregs==0) {
+      // start of new sequence
+      seqstart = reg;
+      inp_mbregs = regP->mbinput;
+      num_mbregs++;
+    }
+    last_mbreg = regP->mbreg;
+  }
+  if (Error::isOK(err) && num_mbregs>0) {
+    err = modbusReadRegisterSequence(seqstart, num_mbregs);
+  }
+  return err;
+}
+
+
+ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aRegIdx)
+{
+  ErrorPtr err;
+
+  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
+  if (regP->mbinput) return Error::err<CoreRegError>(CoreRegError::readOnly, "cannot update read-only modbus input #%d", regP->mbreg);
+  int32_t val;
+  err = getEngineeringValue(aRegIdx, val);
+  if (Error::isOK(err)) {
+    uint16_t regs[2];
+    regs[0] = val & 0xFFFF; // LSWord
+    if ((regP->layout&reg_bytecount_mask)>2) {
+      // 32bit value, must send it as two consecutive registers
+      regs[1] = (uint32_t)val >> 16;
+      err = modbusMaster().writeRegisters(regP->mbreg, 2, regs);
+    }
+    else {
+      // 16bit value, just LSWord alone
+      err = modbusMaster().writeRegisters(regP->mbreg, 1, regs);
+    }
+  }
+  return err;
+}
+
+
+

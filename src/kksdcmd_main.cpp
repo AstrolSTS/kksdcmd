@@ -39,9 +39,10 @@
 #include <stdio.h>
 #include <math.h>
 
-#define DEFAULT_MODBUS_RTU_PARAMS "115200,8,N,1" // [baud rate][,[bits][,[parity][,[stopbits][,[H]]]]]
+#define STRINGIZE_(x) #x
+#define STRINGIZE(x) STRINGIZE_(x)
 #define DEFAULT_MODBUS_IP_PORT 502 // standard modbus port
-#define DEFAULT_MODBUS_CONNECTION "0.0.0.0:502"
+#define DEFAULT_POLL_INTERVAL_MS 500 // default proxy polling interval (SPI and modbus)
 
 #define MAINSCRIPT_DEFAULT_FILE_NAME "mainscript.txt"
 
@@ -221,13 +222,12 @@ class KksDcmD : public CmdLineApp
   UbusServerPtr mUbusApiServer; ///< ubus API for openwrt web interface
   #endif // ENABLE_UBUS
 
-  // FIXME: remove
-  /*
-  // SPI
-  CoreSPIProtoPtr mCoreSPI;
-  */
+  typedef std::vector<CoreRegModelPtr> CoreRegModelVector;
 
-  CoreRegModelPtr mCoreRegModel;
+  CoreRegModelVector mCoreRegModels; ///< the core register models (local SPI and proxies)
+
+  MLMicroSeconds mPollInterval = Never;
+  MLTicket mPollTimer;
 
   // app
   bool mActive;
@@ -271,8 +271,12 @@ public:
       #if ENABLE_UBUS
       { 0  , "ubusapi",       false, "enable ubus API" },
       #endif
-      { 0  , "modbus",        true,  "ip:port;TCP address (0.0.0.0 for server) port to listen for modbus connections, default=" DEFAULT_MODBUS_CONNECTION },
-      { 0  , "corespi",       true,  "busno*10+CSno;SPI bus and CS number to use, default=10" },
+      { 0  , "modbus",        true,  "ip:port;TCP address (0.0.0.0 for server) port to listen for modbus connections, default=none" },
+      { 0  , "corespi",       true,  "busno*10+CSno;SPI bus and CS number to use, default=no SPI" },
+      { 0  , "proxybaseip",   true,  "base ip;IP of first proxy (modbus slave), default=no proxies" },
+      { 0  , "proxyport",     true,  "port;port number for modbus proxy connections, default=" STRINGIZE(DEFAULT_MODBUS_IP_PORT) },
+      { 0  , "numproxies",    true,  "num;number of proxies (with consecutive IP addresses), default=1" },
+      { 0  , "pollinterval",  true,  "milliseconds;refresh interval for locally cached registers from SPI and proxies, 0=Never, default=" STRINGIZE(DEFAULT_POLL_INTERVAL_MS) },
       CMDLINE_APPLICATION_PATHOPTIONS,
       DAEMON_APPLICATION_LOGOPTIONS,
       CMDLINE_APPLICATION_STDOPTIONS,
@@ -304,10 +308,6 @@ public:
 
 
   // MARK: - ubus API
-
-  #if defined(__APPLE__) && DEBUG
-  #define ENABLE_UBUS 1 // enable for activating syntax check in XCode
-  #endif
 
   #if ENABLE_UBUS
 
@@ -387,50 +387,59 @@ public:
           }
           else {
             string cmd = o->stringValue();
-            if (cmd=="list") {
-              // list current register model
-              if (subsys->get("refresh", o)) {
-                if (o->boolValue()) {
-                  err = mCoreRegModel->updateModbusRegistersFromSPI(0, mCoreRegModel->maxReg());
-                }
+            size_t generator = 0; // default to first (which is local SPI when enabled)
+            if (subsys->get("generator", o)) {
+              generator = o->int32Value();
+              if (generator>=mCoreRegModels.size()) {
+                err = TextError::err("'generator' out of range, must be 0..%zu", mCoreRegModels.size()-1);
               }
-              result = mCoreRegModel->getRegisterInfos();
             }
-            else if (cmd=="read") {
-              if (!subsys->get("index", o)) {
-                err = TextError::err("missing 'index' for 'read' command");
-              }
-              else {
-                CoreRegModel::RegIndex regIndex = o->int32Value();
+            if (Error::isOK(err)) {
+              if (cmd=="list") {
+                // list current register model
                 if (subsys->get("refresh", o)) {
                   if (o->boolValue()) {
-                    err = mCoreRegModel->updateModbusRegistersFromSPI(regIndex, regIndex);
+                    err = mCoreRegModels[generator]->updateRegisterCache();
                   }
                 }
-                if (Error::isOK(err)) {
-                  result = mCoreRegModel->getRegisterInfo(regIndex);
-                }
+                result = mCoreRegModels[generator]->getRegisterInfos();
               }
-            }
-            else if (cmd=="write") {
-              if (!subsys->get("index", o)) {
-                err = TextError::err("missing 'index' for 'write' command");
-              }
-              else {
-                CoreRegModel::RegIndex regIndex = o->int32Value();
-                if (!subsys->get("value", o)) {
-                  err = TextError::err("missing 'value' for 'write' command");
+              else if (cmd=="read") {
+                if (!subsys->get("index", o)) {
+                  err = TextError::err("missing 'index' for 'read' command");
                 }
                 else {
-                  err = mCoreRegModel->setRegisterValue(regIndex, o);
+                  CoreRegModel::RegIndex regIndex = o->int32Value();
+                  if (subsys->get("refresh", o)) {
+                    if (o->boolValue()) {
+                      err = mCoreRegModels[generator]->updateRegisterCacheFromHardware(regIndex, regIndex);
+                    }
+                  }
                   if (Error::isOK(err)) {
-                    err = mCoreRegModel->updateSPIRegisterFromModbus(regIndex);
+                    result = mCoreRegModels[generator]->getRegisterInfo(regIndex);
                   }
                 }
               }
-            }
-            else {
-              err = TextError::err("unknown 'cmd'='%s' in 'coreregs'", cmd.c_str());
+              else if (cmd=="write") {
+                if (!subsys->get("index", o)) {
+                  err = TextError::err("missing 'index' for 'write' command");
+                }
+                else {
+                  CoreRegModel::RegIndex regIndex = o->int32Value();
+                  if (!subsys->get("value", o)) {
+                    err = TextError::err("missing 'value' for 'write' command");
+                  }
+                  else {
+                    err = mCoreRegModels[generator]->setRegisterValue(regIndex, o);
+                    if (Error::isOK(err)) {
+                      err = mCoreRegModels[generator]->updateHardwareFromRegisterCache(regIndex);
+                    }
+                  }
+                }
+              }
+              else {
+                err = TextError::err("unknown 'cmd'='%s' in 'coreregs'", cmd.c_str());
+              }
             }
           }
         }
@@ -529,15 +538,18 @@ public:
   ErrorPtr modbusAccessHandler(int aAddress, bool aBit, bool aInput, bool aWrite)
   {
     ErrorPtr err;
+    if (mCoreRegModels.empty()) {
+      return TextError::err("no core registers to access");
+    }
     if (!aBit) {
-      CoreRegModel::RegIndex regIndex = mCoreRegModel->regindexFromModbusReg(aAddress, aInput);
+      CoreRegModel::RegIndex regIndex = mCoreRegModels[0]->regindexFromModbusReg(aAddress, aInput);
       if (aWrite) {
-        // new data written, forward to core via SPI
-        mCoreRegModel->updateSPIRegisterFromModbus(regIndex);
+        // new data written, forward to hardware (SPI, Proxy)
+        mCoreRegModels[0]->updateHardwareFromRegisterCache(regIndex);
       }
       else {
-        // get current data from code via SPI
-        mCoreRegModel->updateModbusRegistersFromSPI(regIndex, regIndex);
+        // get current data from core (via SPI or Proxy)
+        mCoreRegModels[0]->updateRegisterCacheFromHardware(regIndex, regIndex);
       }
     }
     return err;
@@ -594,30 +606,53 @@ public:
     #endif // ENABLE_HTTP_SCRIPT_FUNCS
     #endif // ENABLE_P44SCRIPT
 
-    // Create the register model
-    mCoreRegModel = CoreRegModelPtr(new CoreRegModel);
-    // Add the SPI
-    int spino = 10; // default to bus 1, CS0 (as in KKS-DCM revA hardware)
-    getIntOption("corespi", spino);
-    SPIDevicePtr dev = SPIManager::sharedManager().getDevice(spino, "generic");
-    mCoreRegModel->coreSPIProto().setSpiDevice(dev);
-    // Prepare the modbus slave for TCP connections
-    string mbconn = DEFAULT_MODBUS_CONNECTION;
-    getStringOption("modbus", mbconn);
-    mCoreRegModel->modbusSlave().setConnectionSpecification(mbconn.c_str(), DEFAULT_MODBUS_IP_PORT, NULL);
-    mCoreRegModel->modbusSlave().setSlaveId(string_format("KKS-DCM version %s", Application::version().c_str()));
-    // start TCP server for modbus slave
-    err = mCoreRegModel->modbusSlave().connect();
-    if (Error::notOK(err)) {
-      LOG(LOG_ERR, "Error starting modbus TCP server/slave: %s", err->text());
+    // Set up local SPI core, if any
+    int spino;
+    if (getIntOption("corespi", spino)) {
+      // make first generator access local core via SPI
+      SPICoreRegModelPtr spicore = new SPICoreRegModel;
+      mCoreRegModels.push_back(spicore);
+      SPIDevicePtr dev = SPIManager::sharedManager().getDevice(spino, "generic");
+      spicore->coreSPIProto().setSpiDevice(dev);
+      // Set up modbus slave for access to local generator's registers
+      string mbconn;
+      if (getStringOption("modbus", mbconn)) {
+        spicore->modbusSlave().setConnectionSpecification(mbconn.c_str(), DEFAULT_MODBUS_IP_PORT, NULL);
+        spicore->modbusSlave().setSlaveId(string_format("KKS-DCM version %s", Application::version().c_str()));
+        // start TCP server for modbus slave
+        err = spicore->modbusSlave().connect();
+        if (Error::notOK(err)) {
+          LOG(LOG_ERR, "Error starting modbus TCP server/slave: %s", err->text());
+        }
+        // install modbus access handler
+        spicore->modbusSlave().setValueAccessHandler(boost::bind(&KksDcmD::modbusAccessHandler, this, _1, _2, _3, _4));
+      }
     }
-    // read initial values into all modbus registers from actual hardware
-    err = mCoreRegModel->updateModbusRegistersFromSPI(0, mCoreRegModel->maxReg());
-    if (Error::notOK(err)) {
-      LOG(LOG_ERR, "Error updating registers: %s", err->text());
+    // set up core proxies
+    string baseip;
+    if (getStringOption("proxybaseip", baseip)) {
+      uint32_t ip = stringToIpv4(baseip.c_str());
+      int port = DEFAULT_MODBUS_IP_PORT;
+      getIntOption("proxyport", port);
+      if (ip==0) {
+        err = TextError::err("Invalid proxy base IP address: %s", baseip.c_str());
+      }
+      else {
+        // how many proxies?
+        int numproxies = 1; // default to 1
+        getIntOption("numproxies", numproxies);
+        while (numproxies>0) {
+          // create a proxy
+          ProxyCoreRegModelPtr proxycore = new ProxyCoreRegModel;
+          mCoreRegModels.push_back(proxycore);
+          // set up modbus master
+          proxycore->modbusMaster().setConnectionSpecification(ipv4ToString(ip).c_str(), port, NULL);
+          // done with this one
+          numproxies--;
+          ip++; // next proxy will just have next consecutive IP
+        }
+      }
     }
-    // install modbus access handler
-    mCoreRegModel->modbusSlave().setValueAccessHandler(boost::bind(&KksDcmD::modbusAccessHandler, this, _1, _2, _3, _4));
     #if ENABLE_P44SCRIPT
     // load and start main script
     if (getStringOption("mainscript", mMainScriptFn)) {
@@ -643,11 +678,32 @@ public:
       }
     }
     #endif // ENABLE_P44SCRIPT
+    // start cache refreshing
+    int poll_ms = DEFAULT_POLL_INTERVAL_MS;
+    getIntOption("pollinterval", poll_ms);
+    mPollInterval = poll_ms*MilliSecond;
+    if (mPollInterval!=0) {
+      mPollTimer.executeOnce(boost::bind(&KksDcmD::corePoller, this), mPollInterval);
+    }
     // display error
     if (Error::notOK(err)) {
       LOG(LOG_ERR, "Startup error: %s", Error::text(err));
     }
   }
+
+
+  void corePoller()
+  {
+    for(int generator=0; generator<mCoreRegModels.size(); generator++) {
+      LOG(LOG_INFO, "\n=== start polling generator %d", generator);
+      mCoreRegModels[generator]->updateRegisterCache();
+      LOG(LOG_INFO, "=== done polling generator %d", generator);
+    }
+    // schedule next poll
+    mPollTimer.executeOnce(boost::bind(&KksDcmD::corePoller, this), mPollInterval);
+  }
+
+
 
 
   void mainScriptDone(ScriptObjPtr aResult)
