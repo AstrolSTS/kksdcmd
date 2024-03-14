@@ -374,6 +374,9 @@ public:
       terminateApp(1);
       aUbusRequest->sendResponse(JsonObjectPtr());
     }
+    else if (aUbusRequest->method()=="version") {
+      aUbusRequest->sendResponse(JsonObject::newString(Application::version()));
+    }
     else if (aUbusRequest->method()=="api") {
       ErrorPtr err;
       JsonObjectPtr result;

@@ -43,7 +43,7 @@ namespace p44 {
       numErrorCodes
     } ErrorCodes;
     static const char *domain() { return "CoreSPI"; }
-    virtual const char *getErrorDomain() const { return CoreSPIError::domain(); };
+    virtual const char *getErrorDomain() const P44_OVERRIDE { return CoreSPIError::domain(); };
     CoreSPIError(ErrorCodes aError) : Error(ErrorCode(aError)) {};
     #if ENABLE_NAMED_ERRORS
   protected:
