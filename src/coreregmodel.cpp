@@ -639,11 +639,15 @@ ErrorPtr ProxyCoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue
 }
 
 
-ErrorPtr ProxyCoreRegModel::modbusReadRegisterSequence(RegIndex aFromIdx, int aNumModbusRegs)
+ErrorPtr ProxyCoreRegModel::modbusReadRegisterSequence(RegIndex aFromIdx, int aNumModbusRegs, bool& aConnected)
 {
   ErrorPtr err;
   uint16_t* regValuesP = new uint16_t[aNumModbusRegs]; // double size because some could be 32bit!
   const CoreModuleRegister* firstRegP = &coreModuleRegisterDefs[aFromIdx];
+  if (!aConnected) {
+    modbusMaster().connectAsMaster();
+    aConnected = true;
+  }
   DBGLOG(LOG_INFO, "modbusReadRegisterSequence: from %s(%d), mbreg=%d(%s), num_mbregs=%d", firstRegP->regname, aFromIdx, firstRegP->mbreg, firstRegP->mbinput ? "RO" : "RW", aNumModbusRegs);
   err = modbusMaster().readRegisters(firstRegP->mbreg, aNumModbusRegs, regValuesP, firstRegP->mbinput);
   RegIndex reg = aFromIdx; // must count these separately because there might be 32-bit registers (with 2 modbus regs)
@@ -684,6 +688,7 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   RegIndex seqstart; // first register index for a multi-register modbus read call
   bool inp_mbregs; // is current sequence an input register?
   uint16_t num_mbregs = 0; // number of registers accumulated
+  bool connected = false; // same modbus connection for all needed register calls
 
   for (RegIndex reg = aFromIdx; reg<=aToIdx; reg++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[reg];
@@ -700,7 +705,7 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
       }
       else {
         // previous sequence ends, actually get values via modbus
-        err = modbusReadRegisterSequence(seqstart, num_mbregs);
+        err = modbusReadRegisterSequence(seqstart, num_mbregs, connected);
         num_mbregs = 0; // reset
         if (Error::notOK(err)) break;
       }
@@ -714,7 +719,10 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
     last_mbreg = regP->mbreg;
   }
   if (Error::isOK(err) && num_mbregs>0) {
-    err = modbusReadRegisterSequence(seqstart, num_mbregs);
+    err = modbusReadRegisterSequence(seqstart, num_mbregs, connected);
+  }
+  if (connected) {
+    modbusMaster().close();
   }
   return err;
 }

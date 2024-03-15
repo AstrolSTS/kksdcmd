@@ -297,7 +297,7 @@ namespace p44 {
 
   private:
 
-    ErrorPtr modbusReadRegisterSequence(RegIndex aFromIdx, int aNumModbusRegs);
+    ErrorPtr modbusReadRegisterSequence(RegIndex aFromIdx, int aNumModbusRegs, bool& aConnected);
 
   };
   typedef boost::intrusive_ptr<ProxyCoreRegModel> ProxyCoreRegModelPtr;

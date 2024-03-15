@@ -698,9 +698,10 @@ public:
   void corePoller()
   {
     for(int generator=0; generator<mCoreRegModels.size(); generator++) {
-      LOG(LOG_INFO, "\n=== start polling generator %d", generator);
-      mCoreRegModels[generator]->updateRegisterCache();
-      LOG(LOG_INFO, "=== done polling generator %d", generator);
+      LOG(LOG_INFO, "\n=== start polling generator #%d", generator);
+      ErrorPtr err = mCoreRegModels[generator]->updateRegisterCache();
+      if (Error::notOK(err)) LOG(LOG_ERR, "error polling generator #%d: %s", generator, err->text());
+      LOG(LOG_INFO, "=== done polling generator #%d", generator);
     }
     // schedule next poll
     mPollTimer.executeOnce(boost::bind(&KksDcmD::corePoller, this), mPollInterval);
