@@ -86,9 +86,9 @@ static JsonObjectPtr makeResponse(JsonObjectPtr aResult, ErrorPtr aErr)
 
 // MARK: - ApiRequestObj
 
-class ApiRequestObj : public JsonValue
+class ApiRequestObj : public ObjectValue
 {
-  typedef JsonValue inherited;
+  typedef ObjectValue inherited;
 
   EventSource* mEventSource;
   UbusRequestPtr mUbusRequest;
@@ -117,18 +117,19 @@ public:
     return inherited::getTypeInfo()|oneshot|keeporiginal; // returns the request only once, must keep the original
   }
 
-  virtual EventSource *eventSource() const P44_OVERRIDE
+  virtual bool isEventSource() const P44_OVERRIDE { return true; };
+  
+  virtual void registerForFilteredEvents(EventSink* aEventSink, intptr_t aRegId = 0) P44_OVERRIDE
   {
-    return mEventSource;
+    mEventSource->registerForEvents(aEventSink, aRegId);
   }
 
-  virtual const ScriptObjPtr memberByName(const string aName, TypeInfo aMemberAccessFlags = none) P44_OVERRIDE;
+  virtual const ScriptObjPtr memberByName(const string aName, TypeInfo aMemberAccessFlags = none) const P44_OVERRIDE;
 
 };
 
 // answer([answer value])        answer the request
-static const BuiltInArgDesc answer_args[] = { { any|optionalarg } };
-static const size_t answer_numargs = sizeof(answer_args)/sizeof(BuiltInArgDesc);
+FUNC_ARG_DEFS(answer, { anyvalid|optionalarg } );
 static void answer_func(BuiltinFunctionContextPtr f)
 {
   ApiRequestObj* reqObj = dynamic_cast<ApiRequestObj *>(f->thisObj().get());
@@ -140,15 +141,16 @@ static void answer_func(BuiltinFunctionContextPtr f)
   }
   f->finish();
 }
+
 static const BuiltinMemberDescriptor answer_desc =
-  { "answer", executable|any, answer_numargs, answer_args, &answer_func };
+  FUNC_DEF_W_ARG(answer, executable|anyvalid);
 
 
-const ScriptObjPtr ApiRequestObj::memberByName(const string aName, TypeInfo aMemberAccessFlags)
+const ScriptObjPtr ApiRequestObj::memberByName(const string aName, TypeInfo aMemberAccessFlags) const
 {
   ScriptObjPtr val;
   if (uequals(aName, "answer")) {
-    val = new BuiltinFunctionObj(&answer_desc, this, NULL);
+    val = new BuiltinFunctionObj(&answer_desc, const_cast<ApiRequestObj*>(this), nullptr);
   }
   else {
     val = inherited::memberByName(aName, aMemberAccessFlags);
@@ -164,7 +166,7 @@ static ScriptApiLookup* gScriptApiLookupP; // FIXME: ugly static pointer
 static void webrequest_func(BuiltinFunctionContextPtr f);
 
 static const BuiltinMemberDescriptor scriptApiGlobals[] = {
-  { "webrequest", executable|json|null, 0, NULL, &webrequest_func },
+  FUNC_DEF_NOARG(webrequest, executable|objectvalue|null),
   { NULL } // terminator
 };
 
@@ -235,7 +237,7 @@ class KksDcmD : public CmdLineApp
   #if ENABLE_P44SCRIPT
   // scripting
   string mMainScriptFn; ///< filename for the main script
-  ScriptSource mMainScript;
+  ScriptHost mMainScript;
   ScriptMainContextPtr mScriptMainContext;
   #if ENABLE_UBUS
   ScriptApiLookup mScriptApiLookup; ///< lookup and event source for script API
@@ -451,7 +453,7 @@ public:
         if (aUbusRequest->msg()->get("mainscript", subsys)) {
           if (subsys->get("execcode", o)) {
             // direct execution of a script command line in the common main/initscript context
-            ScriptSource src(sourcecode+regular+keepvars+concurrently+ephemeralSource, "execcode");
+            ScriptHost src(sourcecode+regular+keepvars+concurrently+ephemeralSource, "execcode");
             src.setSource(o->stringValue());
             src.setSharedMainContext(mScriptMainContext);
             src.run(inherit, boost::bind(&KksDcmD::scriptExecHandler, this, aUbusRequest, _1));
@@ -708,8 +710,6 @@ public:
   }
 
 
-
-
   void mainScriptDone(ScriptObjPtr aResult)
   {
     if (aResult && aResult->isErr()) {
@@ -734,8 +734,7 @@ public:
 // FIXME: probably remove exit(), we now have restartapp() in p44script
 
 // exit(exitcode)
-static const BuiltInArgDesc exit_args[] = { { numeric } };
-static const size_t exit_numargs = sizeof(exit_args)/sizeof(BuiltInArgDesc);
+FUNC_ARG_DEFS(exit, { numeric } );
 static void exit_func(BuiltinFunctionContextPtr f)
 {
   KksDcmD& kksdcmd = static_cast<KksDcmDLookup*>(f->funcObj()->getMemberLookup())->mKksdcmd;
@@ -746,7 +745,7 @@ static void exit_func(BuiltinFunctionContextPtr f)
 
 
 static const BuiltinMemberDescriptor kksdcmdGlobals[] = {
-  { "exit", executable|null, exit_numargs, exit_args, &exit_func },
+  FUNC_DEF_W_ARG(exit, executable|null),
   { NULL } // terminator
 };
 

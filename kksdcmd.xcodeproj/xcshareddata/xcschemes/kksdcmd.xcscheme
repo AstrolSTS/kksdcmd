@@ -60,6 +60,10 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
+            argument = "--proxybaseip 127.0.0.1 --proxyport 503 --numproxies 1 --pollinterval 10000"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
             argument = "-l 7"
             isEnabled = "YES">
          </CommandLineArgument>

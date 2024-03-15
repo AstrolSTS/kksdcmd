@@ -27,7 +27,7 @@
   #if defined(__APPLE__)
     #define SPI_SIMULATION 1
     #undef ENABLE_UBUS
-    #define ENABLE_UBUS 0
+    #define ENABLE_UBUS 1
   #endif
 #endif
 
