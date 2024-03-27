@@ -690,6 +690,10 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   uint16_t num_mbregs = 0; // number of registers accumulated
   bool connected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
 
+  if (connected) {
+    modbusMaster().close();
+  }
+
   for (RegIndex reg = aFromIdx; reg<=aToIdx; reg++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[reg];
     if (num_mbregs>0) {
@@ -721,9 +725,7 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   if (Error::isOK(err) && num_mbregs>0) {
     err = modbusReadRegisterSequence(seqstart, num_mbregs, connected);
   }
-  if (!connected) {
-    modbusMaster().close();
-  }
+  
   return err;
 }
 
