@@ -369,10 +369,10 @@ ErrorPtr CoreRegModel::setRegisterValue(RegIndex aRegIdx, JsonObjectPtr aNewValu
 }
 
 
-JsonObjectPtr CoreRegModel::getRegisterInfos()
+JsonObjectPtr CoreRegModel::getRegisterInfos(RegIndex aFromIdx, RegIndex aToIdx)
 {
   JsonObjectPtr infos = JsonObject::newArray();
-  for (RegIndex i=0; i<numModuleRegisters; i++) {
+  for (RegIndex i=aFromIdx; i<=aToIdx && i<numModuleRegisters; i++) {
     infos->arrayAppend(getRegisterInfo(i));
   }
   return infos;
@@ -538,12 +538,15 @@ ErrorPtr SPICoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, Reg
 }
 
 
-ErrorPtr SPICoreRegModel::updateHardwareFromRegisterCache(RegIndex aRegIdx)
+ErrorPtr SPICoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx)
 {
+  ErrorPtr err;
   int32_t data;
-  ErrorPtr err = getEngineeringValue(aRegIdx, data);
-  if (Error::isOK(err)) {
-    err = writeSPIReg(aRegIdx, data);
+  for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
+    err = getEngineeringValue(regIdx, data);
+    if (Error::notOK(err)) break;
+    err = writeSPIReg(regIdx, data);
+    if (Error::notOK(err)) break;
   }
   return err;
 }
@@ -730,15 +733,25 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
 }
 
 
-ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aRegIdx)
+ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx)
 {
   ErrorPtr err;
+  bool connected = false; // same modbus connection for all needed register calls
 
-  const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
-  if (regP->mbinput) return Error::err<CoreRegError>(CoreRegError::readOnly, "cannot update read-only modbus input #%d", regP->mbreg);
-  int32_t val;
-  err = getEngineeringValue(aRegIdx, val);
-  if (Error::isOK(err)) {
+  modbusMaster().connectAsMaster();
+  for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
+    const CoreModuleRegister* regP = &coreModuleRegisterDefs[regIdx];
+    if (regP->mbinput) {
+      err = Error::err<CoreRegError>(CoreRegError::readOnly, "cannot update read-only modbus input #%d", regP->mbreg);
+      break;
+    }
+    if (!connected) {
+      modbusMaster().connectAsMaster();
+      connected = true;
+    }
+    int32_t val;
+    err = getEngineeringValue(regIdx, val);
+    if (Error::notOK(err)) break;
     uint16_t regs[2];
     regs[0] = val & 0xFFFF; // LSWord
     if ((regP->layout&reg_bytecount_mask)>2) {
@@ -750,6 +763,10 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aRegIdx)
       // 16bit value, just LSWord alone
       err = modbusMaster().writeRegisters(regP->mbreg, 1, regs);
     }
+    if (Error::notOK(err)) break;
+  }
+  if (connected) {
+    modbusMaster().close();
   }
   return err;
 }

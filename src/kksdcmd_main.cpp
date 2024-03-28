@@ -322,6 +322,7 @@ public:
     u->addMethod("log", logapi_policy);
     u->addMethod("api", kksmbcapi_policy);
     u->addMethod("quit");
+    u->addMethod("version");
     mUbusApiServer->registerObject(u);
   }
 
@@ -402,43 +403,115 @@ public:
             if (Error::isOK(err)) {
               if (cmd=="list") {
                 // list current register model
-                if (subsys->get("refresh", o)) {
-                  if (o->boolValue()) {
-                    err = mCoreRegModels[generator]->updateRegisterCache();
-                  }
+                CoreRegModel::RegIndex from = 0;
+                CoreRegModel::RegIndex to = mCoreRegModels[generator]->maxReg();
+                if (subsys->get("index", o)) from = o->int32Value();
+                if (subsys->get("count", o)) to = from+o->int32Value()-1;
+                if (to<from) {
+                  err = TextError::err("'count' must be >=1");
                 }
-                result = mCoreRegModels[generator]->getRegisterInfos();
+                else {
+                  if (subsys->get("refresh", o)) {
+                    if (o->boolValue()) {
+                      err = mCoreRegModels[generator]->updateRegisterCacheFromHardware(from, to);
+                    }
+                  }
+                  result = mCoreRegModels[generator]->getRegisterInfos(from, to);
+                }
               }
               else if (cmd=="read") {
                 if (!subsys->get("index", o)) {
                   err = TextError::err("missing 'index' for 'read' command");
                 }
                 else {
-                  CoreRegModel::RegIndex regIndex = o->int32Value();
-                  if (subsys->get("refresh", o)) {
-                    if (o->boolValue()) {
-                      err = mCoreRegModels[generator]->updateRegisterCacheFromHardware(regIndex, regIndex);
-                    }
+                  CoreRegModel::RegIndex from = o->int32Value();
+                  CoreRegModel::RegIndex to = from;
+                  if (subsys->get("count", o)) to = from+o->int32Value()-1;
+                  if (to<from) {
+                    err = TextError::err("'count' must be >=1");
                   }
-                  if (Error::isOK(err)) {
-                    result = mCoreRegModels[generator]->getRegisterInfo(regIndex);
+                  else {
+                    if (subsys->get("refresh", o)) {
+                      if (o->boolValue()) {
+                        err = mCoreRegModels[generator]->updateRegisterCacheFromHardware(from, to);
+                      }
+                    }
+                    if (Error::isOK(err)) {
+                      if (to>from) {
+                        // multiple registers, basically same as "list"
+                        result = mCoreRegModels[generator]->getRegisterInfos(from, to);
+                      }
+                      else {
+                        // single register, result is object of that single register, not wrapped in array
+                        result = mCoreRegModels[generator]->getRegisterInfo(from);
+                      }
+                    }
                   }
                 }
               }
               else if (cmd=="write") {
+                // write Params:
+                // - index: first register
+                // - count: optional for writing or committing multiple registers
+                // - commit: true or false -> commit value(s) to hardware
+                // - value: single value or array of values (length of array implies count,
+                //     if count is specified, array size must match
+                //     if commit: true is passed, specifying no value(s) is allowed
                 if (!subsys->get("index", o)) {
                   err = TextError::err("missing 'index' for 'write' command");
                 }
                 else {
-                  CoreRegModel::RegIndex regIndex = o->int32Value();
-                  if (!subsys->get("value", o)) {
-                    err = TextError::err("missing 'value' for 'write' command");
+                  // first register
+                  CoreRegModel::RegIndex from = o->int32Value();
+                  // check optional params
+                  bool doCommit = true; // by default, commit
+                  bool explicitCommit = false;
+                  if (subsys->get("commit")) {
+                    doCommit = o->boolValue();
+                    explicitCommit = true;
+                  }
+                  CoreRegModel::RegIndex count = 1;
+                  bool explicitCount = false;
+                  if (subsys->get("count")) {
+                    count = o->int32Value();
+                    explicitCount = true;
+                  }
+                  // write new values
+                  if (subsys->get("value", o)) {
+                    // values to write
+                    if (o->isType(json_type_array)) {
+                      // multiple values
+                      if (explicitCount && count!=o->arrayLength()) {
+                        err = TextError::err("'count' does not match size of 'value' array");
+                      }
+                      else {
+                        count = o->arrayLength();
+                        // multiple values
+                        for (int i=0; i<count; i++) {
+                          err = mCoreRegModels[generator]->setRegisterValue(from+i, o->arrayGet(i));
+                          if (Error::notOK(err)) break;
+                        }
+                      }
+                    }
+                    else {
+                      // single value
+                      if (explicitCount && count!=1) {
+                        err = TextError::err("'count' must be 1 when 'value' is not an array");
+                      }
+                      else {
+                        err = mCoreRegModels[generator]->setRegisterValue(from, o);
+                      }
+                    }
                   }
                   else {
-                    err = mCoreRegModels[generator]->setRegisterValue(regIndex, o);
-                    if (Error::isOK(err)) {
-                      err = mCoreRegModels[generator]->updateHardwareFromRegisterCache(regIndex);
+                    // no values - might be commit-only
+                    if (!explicitCount || !explicitCommit || !doCommit) {
+                      err = TextError::err("with no 'value', 'count' and 'commit' must be set");
                     }
+                  }
+                  if (Error::isOK(err) && doCommit && count>0) {
+                    // possibly commit values
+                    err = mCoreRegModels[generator]->updateHardwareFromRegisterCache(from, from+count-1);
                   }
                 }
               }
@@ -550,7 +623,7 @@ public:
       CoreRegModel::RegIndex regIndex = mCoreRegModels[0]->regindexFromModbusReg(aAddress, aInput);
       if (aWrite) {
         // new data written, forward to hardware (SPI, Proxy)
-        mCoreRegModels[0]->updateHardwareFromRegisterCache(regIndex);
+        mCoreRegModels[0]->updateHardwareFromRegisterCache(regIndex, regIndex);
       }
       else {
         // get current data from core (via SPI or Proxy)

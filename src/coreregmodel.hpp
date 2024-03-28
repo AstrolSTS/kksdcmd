@@ -113,8 +113,10 @@ namespace p44 {
     ErrorPtr setRegisterValue(RegIndex aRegIdx, JsonObjectPtr aNewValue);
 
     /// get user facing infos for all registers
-    /// @return json array with all info for all registers
-    JsonObjectPtr getRegisterInfos();
+    /// @param aFromIdx register to start, default=0
+    /// @param aToIdx register to start, default=0
+    /// @return json array with all info for registers
+    JsonObjectPtr getRegisterInfos(RegIndex aFromIdx, RegIndex aToIdx);
 
     /// refresh the entire cache (all registers)
     ErrorPtr updateRegisterCache();
@@ -145,9 +147,10 @@ namespace p44 {
     virtual ErrorPtr updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx) = 0;
 
     /// update local or proxied hardware from register cache
-    /// @param aRegIdx register index to write (internal)
+    /// @param aFromIdx first register index to write (internal)
+    /// @param aToIdx last register to write
     /// @return OK or error
-    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aRegIdx) = 0;
+    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx) = 0;
 
     /// @}
 
@@ -204,9 +207,10 @@ namespace p44 {
     virtual ErrorPtr updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx) P44_OVERRIDE;
 
     /// update local or proxied hardware from register cache
-    /// @param aRegIdx register index to write (internal)
+    /// @param aFromIdx first register index to write (internal)
+    /// @param aToIdx last register to write
     /// @return OK or error
-    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aRegIdx) P44_OVERRIDE;
+    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx) P44_OVERRIDE;
 
     /// @}
 
@@ -289,9 +293,10 @@ namespace p44 {
     virtual ErrorPtr updateRegisterCacheFromHardware(RegIndex aFromIdx, RegIndex aToIdx) P44_OVERRIDE;
 
     /// update local or proxied hardware from register cache
-    /// @param aRegIdx register index to write (internal)
+    /// @param aFromIdx first register index to write (internal)
+    /// @param aToIdx last register to write
     /// @return OK or error
-    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aRegIdx) P44_OVERRIDE;
+    virtual ErrorPtr updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx) P44_OVERRIDE;
 
     /// @}
 
