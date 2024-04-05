@@ -691,7 +691,8 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   RegIndex seqstart; // first register index for a multi-register modbus read call
   bool inp_mbregs; // is current sequence an input register?
   uint16_t num_mbregs = 0; // number of registers accumulated
-  bool connected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
+  bool wasConnected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
+  bool connected = wasConnected;
 
   for (RegIndex reg = aFromIdx; reg<=aToIdx; reg++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[reg];
@@ -724,11 +725,9 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   if (Error::isOK(err) && num_mbregs>0) {
     err = modbusReadRegisterSequence(seqstart, num_mbregs, connected);
   }
-
-  if (!connected || Error::notOK(err)) {
+  if ((!wasConnected && connected) || Error::notOK(err)) {
     modbusMaster().close();
   }
-  
   return err;
 }
 
@@ -736,7 +735,8 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
 ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx)
 {
   ErrorPtr err;
-  bool connected = false; // same modbus connection for all needed register calls
+  bool wasConnected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
+  bool connected = wasConnected;
 
   modbusMaster().connectAsMaster();
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
@@ -765,7 +765,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
     }
     if (Error::notOK(err)) break;
   }
-  if (connected) {
+  if ((!wasConnected && connected) || Error::notOK(err)) {
     modbusMaster().close();
   }
   return err;
