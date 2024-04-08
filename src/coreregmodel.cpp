@@ -691,8 +691,7 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   RegIndex seqstart; // first register index for a multi-register modbus read call
   bool inp_mbregs; // is current sequence an input register?
   uint16_t num_mbregs = 0; // number of registers accumulated
-  bool wasConnected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
-  bool connected = wasConnected;
+  bool connected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
 
   for (RegIndex reg = aFromIdx; reg<=aToIdx; reg++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[reg];
@@ -725,7 +724,7 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
   if (Error::isOK(err) && num_mbregs>0) {
     err = modbusReadRegisterSequence(seqstart, num_mbregs, connected);
   }
-  if ((!wasConnected && connected) || Error::notOK(err)) {
+  if ((!connected) || Error::notOK(err)) {
     modbusMaster().close();
   }
   return err;
@@ -735,20 +734,14 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
 ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx)
 {
   ErrorPtr err;
-  bool wasConnected = modbusMaster().isConnected(); // same modbus connection for all needed register calls
-  bool connected = wasConnected;
 
-  modbusMaster().connectAsMaster();
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[regIdx];
     if (regP->mbinput) {
       err = Error::err<CoreRegError>(CoreRegError::readOnly, "cannot update read-only modbus input #%d", regP->mbreg);
       break;
     }
-    if (!connected) {
-      modbusMaster().connectAsMaster();
-      connected = true;
-    }
+
     int32_t val;
     err = getEngineeringValue(regIdx, val);
     if (Error::notOK(err)) break;
@@ -765,9 +758,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
     }
     if (Error::notOK(err)) break;
   }
-  if ((!wasConnected && connected) || Error::notOK(err)) {
-    modbusMaster().close();
-  }
+
   return err;
 }
 
