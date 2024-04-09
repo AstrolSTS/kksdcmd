@@ -758,20 +758,17 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
     if ((regP->layout&reg_bytecount_mask)>2) {
       // 32bit value, must send it as two consecutive registers
       regs[1] = (uint32_t)val >> 16;
-      regBuffer[num_mbregs] = regs[0];
-      regBuffer[num_mbregs+1] = regs[1];
-      num_mbregs += 2;
+      regBuffer[num_mbregs++] = regs[0];
+      regBuffer[num_mbregs++] = regs[1];
     }
     else {
       // 16bit value, just LSWord alone
-      regBuffer[num_mbregs] = regs[0];
-      num_mbregs += 1;
+      regBuffer[num_mbregs++] = regs[0];
     }
   }
 
   if (Error::isOK(err)) {
-    //err = modbusMaster().writeRegisters(addrStart, offset, regBuffer);
-    err = Error::err<CoreRegError>(CoreRegError::readOnly, "num_mbregs: %d | addrStart: %d | regBuffer[0]: %d | aFromIdx: %d | aToIdx: %d",num_mbregs,addrStart,regBuffer[0],aFromIdx,aToIdx);
+    err = modbusMaster().writeRegisters(addrStart, num_mbregs, regBuffer);
   }
 
   return err;
