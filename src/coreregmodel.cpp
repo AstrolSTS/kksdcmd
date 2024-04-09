@@ -736,7 +736,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
   ErrorPtr err;
   uint16_t regBuffer[numModuleRegisters * 2];     // hold enough space
   int16_t offset = 0;
-  int16_t addrStart = -1;
+  int16_t addrStart = 0;
 
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[regIdx];
@@ -745,7 +745,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
       break;
     }
 
-    if(addrStart == -1) {
+    if(regIdx == aFromIdx) {
       addrStart = regP->mbreg;
     }
 
