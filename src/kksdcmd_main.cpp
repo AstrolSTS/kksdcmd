@@ -466,13 +466,13 @@ public:
                   // check optional params
                   bool doCommit = true; // by default, commit
                   bool explicitCommit = false;
-                  if (subsys->get("commit")) {
+                  if (subsys->get("commit", o)) {
                     doCommit = o->boolValue();
                     explicitCommit = true;
                   }
                   CoreRegModel::RegIndex count = 1;
                   bool explicitCount = false;
-                  if (subsys->get("count")) {
+                  if (subsys->get("count", o)) {
                     count = o->int32Value();
                     explicitCount = true;
                   }
