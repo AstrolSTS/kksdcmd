@@ -734,6 +734,8 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
 ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, RegIndex aToIdx)
 {
   ErrorPtr err;
+  uint16_t regBuffer[numModuleRegisters * 2];     // hold enough space
+  int16_t offset = 0;
 
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[regIdx];
@@ -750,13 +752,17 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
     if ((regP->layout&reg_bytecount_mask)>2) {
       // 32bit value, must send it as two consecutive registers
       regs[1] = (uint32_t)val >> 16;
-      err = modbusMaster().writeRegisters(regP->mbreg, 2, regs);
+      regBuffer[offset++] = regs[0];
+      regBuffer[offset++] = regs[1];
     }
     else {
       // 16bit value, just LSWord alone
-      err = modbusMaster().writeRegisters(regP->mbreg, 1, regs);
+      regBuffer[offset++] = regs[0];
     }
-    if (Error::notOK(err)) break;
+  }
+
+  if (Error::isOK(err)) {
+    err = modbusMaster().writeRegisters(aFromIdx, offset, regBuffer);
   }
 
   return err;
