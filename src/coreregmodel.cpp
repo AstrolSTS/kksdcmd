@@ -735,8 +735,9 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
 {
   ErrorPtr err;
   uint16_t regBuffer[256];     // hold enough space
-  volatile int16_t offset = 0;
+  uint16_t num_mbregs = 0; // number of registers accumulated
   int16_t addrStart = 0;
+
 
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[regIdx];
@@ -757,18 +758,20 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
     if ((regP->layout&reg_bytecount_mask)>2) {
       // 32bit value, must send it as two consecutive registers
       regs[1] = (uint32_t)val >> 16;
-      regBuffer[offset++] = regs[0];
-      regBuffer[offset++] = regs[1];
+      regBuffer[num_mbregs] = regs[0];
+      regBuffer[num_mbregs+1] = regs[1];
+      num_mbregs += 2;
     }
     else {
       // 16bit value, just LSWord alone
-      regBuffer[offset++] = regs[0];
+      regBuffer[num_mbregs] = regs[0];
+      num_mbregs += 1;
     }
   }
 
   if (Error::isOK(err)) {
     //err = modbusMaster().writeRegisters(addrStart, offset, regBuffer);
-    err = Error::err<CoreRegError>(CoreRegError::readOnly, "addrStart: %d | offset: %d | regBuffer[0]: %d", addrStart,offset,regBuffer[0]);
+    err = Error::err<CoreRegError>(CoreRegError::readOnly, "addrStart: %d | num_mbregs: %d | regBuffer[0]: %d", addrStart, num_mbregs,regBuffer[0]);
   }
 
   return err;
