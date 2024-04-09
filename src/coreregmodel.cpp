@@ -735,7 +735,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
 {
   ErrorPtr err;
   uint16_t regBuffer[256];     // hold enough space
-  int16_t offset = 0;
+  volatile int16_t offset = 0;
   int16_t addrStart = 0;
 
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
