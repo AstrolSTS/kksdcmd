@@ -736,12 +736,17 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
   ErrorPtr err;
   uint16_t regBuffer[numModuleRegisters * 2];     // hold enough space
   int16_t offset = 0;
+  int16_t addrStart = -1;
 
   for (RegIndex regIdx = aFromIdx; regIdx<=aToIdx; regIdx++) {
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[regIdx];
     if (regP->mbinput) {
       err = Error::err<CoreRegError>(CoreRegError::readOnly, "cannot update read-only modbus input #%d", regP->mbreg);
       break;
+    }
+
+    if(addrStart == -1) {
+      addrStart = regP->mbreg;
     }
 
     int32_t val;
@@ -762,7 +767,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
   }
 
   if (Error::isOK(err)) {
-    err = modbusMaster().writeRegisters(aFromIdx, offset, regBuffer);
+    err = modbusMaster().writeRegisters(addrStart, offset, regBuffer);
   }
 
   return err;
