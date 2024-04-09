@@ -771,7 +771,7 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
 
   if (Error::isOK(err)) {
     //err = modbusMaster().writeRegisters(addrStart, offset, regBuffer);
-    err = Error::err<CoreRegError>(CoreRegError::readOnly, "addrStart: %d | num_mbregs: %d | regBuffer[0]: %d", addrStart, num_mbregs,regBuffer[0]);
+    err = Error::err<CoreRegError>(CoreRegError::readOnly, "num_mbregs: %d | addrStart: %d | regBuffer[0]: %d",num_mbregs,addrStart,regBuffer[0]);
   }
 
   return err;
