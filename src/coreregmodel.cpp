@@ -560,7 +560,9 @@ ErrorPtr SPICoreRegModel::getEngineeringValue(RegIndex aRegIdx, int32_t& aValue)
   const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
   uint32_t data = modbusSlave().getReg(regP->mbreg, regP->mbinput); // LSWord
   if ((regP->layout&reg_bytecount_mask)>2) {
-    data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+1, regP->mbinput))<<16; // MSWord
+    data &= (0xFF);                                                             // LSByte
+    data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+1, regP->mbinput))<<8;  // MiddleByte
+    data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+2, regP->mbinput))<<16; // MSByte
   }
   aValue = data;
   return ErrorPtr();
@@ -581,7 +583,9 @@ ErrorPtr SPICoreRegModel::setEngineeringValue(RegIndex aRegIdx, int32_t aValue, 
     const CoreModuleRegister* regP = &coreModuleRegisterDefs[aRegIdx];
     modbusSlave().setReg(regP->mbreg, regP->mbinput, (uint16_t)aValue); // LSWord
     if ((regP->layout&reg_bytecount_mask)>2) {
-      modbusSlave().setReg(regP->mbreg+1, regP->mbinput, (uint16_t)(aValue>>16)); // MSWord
+      modbusSlave().setReg(regP->mbreg, regP->mbinput, (uint16_t)aValue & 0xFF);          // LSByte
+      modbusSlave().setReg(regP->mbreg+1, regP->mbinput, (uint16_t)(aValue >> 8) & 0xFF); // MiddleByte
+      modbusSlave().setReg(regP->mbreg+2, regP->mbinput, (uint16_t)(aValue >>16) & 0xFF); // MSByte
     }
   }
   return err;
@@ -661,7 +665,10 @@ ErrorPtr ProxyCoreRegModel::modbusReadRegisterSequence(RegIndex aFromIdx, int aN
       int32_t val;
       if ((regP->layout&reg_bytecount_mask)>2) {
         // 32bit: first 16bit are LSWord, second 16bit are MSWord
-        val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<16)); // sign comes from highest bit MSWord
+        //val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<16)); // sign comes from highest bit MSWord
+        
+        // 24bit: 3 bytes = 3 registers
+        val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<8)+((uint32_t)regValuesP[i+1]<<16)); // sign comes from highest bit MSWord
         i++;
       }
       else if (regP->layout&reg_signed) {
@@ -704,6 +711,9 @@ ErrorPtr ProxyCoreRegModel::updateRegisterCacheFromHardware(RegIndex aFromIdx, R
           // read next modbus register (MSWord) as well when value is >16bit
           num_mbregs++;
           last_mbreg++; // sequence must check that
+          // use 3 registers for a 24 bit value
+          num_mbregs++;
+          last_mbreg++; 
         }
       }
       else {
@@ -753,13 +763,17 @@ ErrorPtr ProxyCoreRegModel::updateHardwareFromRegisterCache(RegIndex aFromIdx, R
     int32_t val;
     err = getEngineeringValue(regIdx, val);
     if (Error::notOK(err)) break;
-    uint16_t regs[2];
+    uint16_t regs[3];
     regs[0] = val & 0xFFFF; // LSWord
     if ((regP->layout&reg_bytecount_mask)>2) {
       // 32bit value, must send it as two consecutive registers
-      regs[1] = (uint32_t)val >> 16;
+      // 24bit value is send as three consecutive registers
+      regs[0] = val & 0xFF;           
+      regs[1] = ((uint32_t)val >> 8) & 0xFF;
+      regs[2] = ((uint32_t)val >> 16) & 0xFF;
       regBuffer[num_mbregs++] = regs[0];
       regBuffer[num_mbregs++] = regs[1];
+      regBuffer[num_mbregs++] = regs[2];   
     }
     else {
       // 16bit value, just LSWord alone
