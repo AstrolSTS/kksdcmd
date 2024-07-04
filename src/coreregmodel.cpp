@@ -668,7 +668,8 @@ ErrorPtr ProxyCoreRegModel::modbusReadRegisterSequence(RegIndex aFromIdx, int aN
         //val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<16)); // sign comes from highest bit MSWord
         
         // 24bit: 3 bytes = 3 registers
-        val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<8)+((uint32_t)regValuesP[i+1]<<16)); // sign comes from highest bit MSWord
+        val = (int32_t)((uint32_t)regValuesP[i] + ((uint32_t)regValuesP[i+1]<<8) + ((uint32_t)regValuesP[i+2]<<16)); // sign comes from highest bit MSWord
+        i++;
         i++;
       }
       else if (regP->layout&reg_signed) {
