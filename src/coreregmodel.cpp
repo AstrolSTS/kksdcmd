@@ -457,7 +457,7 @@ static int32_t extractReg(const CoreModuleRegister* aRegP, const uint8_t* aDataP
     data = data + (*(aDataP+bi)<<8*bi);
   }
   // now we have the unsigned portion
-  if (aRegP->layout &  && nb<4) {
+  if (aRegP->layout & reg_signed && nb<4) {
     if (*(aDataP+nb-1) & 0x80) {
       data |= (0xFFFFFFFF<<nb*8); // extend sign bit
     }
