@@ -457,7 +457,7 @@ static int32_t extractReg(const CoreModuleRegister* aRegP, const uint8_t* aDataP
     data = data + (*(aDataP+bi)<<8*bi);
   }
   // now we have the unsigned portion
-  if (aRegP->layout & reg_signed && nb<4) {
+  if (aRegP->layout &  && nb<4) {
     if (*(aDataP+nb-1) & 0x80) {
       data |= (0xFFFFFFFF<<nb*8); // extend sign bit
     }
@@ -673,8 +673,14 @@ ErrorPtr ProxyCoreRegModel::modbusReadRegisterSequence(RegIndex aFromIdx, int aN
         i++;
       }
       else if (regP->layout&reg_signed) {
-        // 16bit signed
-        val = (int16_t)regValuesP[i]; // sign will be extended to 32bit
+        if (regP->layout&reg_sint8) {
+          // 8bit signed
+          val = (int32_t)(int8_t)regValuesP[i]; // sign will be extended to 32bit          
+        }
+        else {
+          // 16bit signed
+          val = (int16_t)regValuesP[i]; // sign will be extended to 32bit
+        }
       }
       else {
         // 16bit unsigned
