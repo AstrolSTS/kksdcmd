@@ -563,8 +563,22 @@ ErrorPtr SPICoreRegModel::getEngineeringValue(RegIndex aRegIdx, int32_t& aValue)
     data &= (0xFF);                                                             // LSByte
     data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+1, regP->mbinput))<<8;  // MiddleByte
     data |= (uint32_t)(modbusSlave().getReg(regP->mbreg+2, regP->mbinput))<<16; // MSByte
+    aValue = data;
   }
-  aValue = data;
+  else if (regP->layout&reg_signed) {
+    if (regP->layout&reg_sint8) {
+      // 8bit signed
+      aValue = (int32_t)(int8_t)(data & 0xFF); // sign will be extended to 32bit          
+    }
+    else {
+      // 16bit signed
+      aValue = (int16_t)(data & 0xFFFF);; // sign will be extended to 32bit
+    }
+  }
+  else {
+    // 16bit unsigned
+    aValue = (uint16_t)(data & 0xFFFF); // no sign extension!
+  }
   return ErrorPtr();
 }
 
