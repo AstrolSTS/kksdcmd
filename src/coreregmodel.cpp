@@ -107,7 +107,7 @@ const CoreModuleRegister coreModuleRegisterDefs[] = {
   { "temperaturQ4",              "Temperatur Schaltelement 4",                0,       255,       0.5,        VALUE_UNIT1(valueUnit_celsius),      30,           1,       reg_uint8,    24,    true   },
   { "temperaturPcb",             "Gehäuse Innentemperatur",                   0,       255,       0.5,        VALUE_UNIT1(valueUnit_celsius),      31,           1,       reg_uint8,    25,    true   },
   { "powerP",                    "Ist-Wirkleistung in Watt",                  1,       3000,      1,          VALUE_UNIT1(valueUnit_watt),         32,           2,       reg_uint16,   26,    true   },
-  { "powerS",                    "Ist-Scheinleistung in Watt",                1,       3000,      1,          VALUE_UNIT1(valueUnit_voltampere),   34,           2,       reg_uint16,   27,    true   },
+  { "apparentCurrent",           "Ist-Scheinstrom in A",                      0,       255,       0.1,        VALUE_UNIT1(valueUnit_ampere),       34,           2,       reg_uint16,   27,    true   },
   { "current",                   "HF-Strom",                                  0,       255,       0.1,        VALUE_UNIT1(valueUnit_ampere),       36,           1,       reg_uint8,    28,    true   },
   { "voltagePowerStage",         "Spannung an Endstufe (Mittelwert)",         0,       255,       2,          VALUE_UNIT1(valueUnit_volt),         37,           1,       reg_uint8,    29,    true   },
   { "peakVoltagePowerStage",     "Spannung an Endstufe (Peak)",               0,       255,       2,          VALUE_UNIT1(valueUnit_volt),         38,           1,       reg_uint8,    30,    true   },
