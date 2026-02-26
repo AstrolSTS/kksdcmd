@@ -770,17 +770,58 @@ public:
   }
 
 
-  void corePoller()
-  {
-    for(int generator=0; generator<mCoreRegModels.size(); generator++) {
-      LOG(LOG_INFO, "\n=== start polling generator #%d", generator);
-      ErrorPtr err = mCoreRegModels[generator]->updateRegisterCache();
-      if (Error::notOK(err)) LOG(LOG_ERR, "error polling generator #%d: %s", generator, err->text());
-      LOG(LOG_INFO, "=== done polling generator #%d", generator);
+void corePoller()
+{
+    // Tracks whether each generator was reachable in the last cycle
+    static std::vector<bool> reachable(mCoreRegModels.size(), true);
+
+    // Remembers which bad generator was retried last time
+    static int lastBadTried = -1;
+
+    // 1) Poll all generators that were previously marked as good
+    for (int generator = 0; generator < mCoreRegModels.size(); generator++) {
+        if (!reachable[generator]) continue;  // skip previously bad generators
+
+        LOG(LOG_INFO, "\n=== polling GOOD generator #%d", generator);
+        ErrorPtr err = mCoreRegModels[generator]->updateRegisterCache();
+
+        if (Error::notOK(err)) {
+            LOG(LOG_ERR, "error polling generator #%d: %s", generator, err->text());
+            reachable[generator] = false;      // mark generator as bad
+        }
     }
-    // schedule next poll
-    mPollTimer.executeOnce(boost::bind(&KksDcmD::corePoller, this), mPollInterval);
-  }
+
+    // 2) Retry exactly one bad generator per cycle
+    int badCount = 0;
+    for (bool ok : reachable) if (!ok) badCount++;
+
+    if (badCount > 0) {
+        // Find the next bad generator in a round-robin manner
+        for (int i = 0; i < mCoreRegModels.size(); i++) {
+            lastBadTried = (lastBadTried + 1) % mCoreRegModels.size();
+            if (!reachable[lastBadTried]) {
+                int g = lastBadTried;
+                LOG(LOG_INFO, "\n=== retry BAD generator #%d", g);
+
+                ErrorPtr err = mCoreRegModels[g]->updateRegisterCache();
+                if (Error::notOK(err)) {
+                    LOG(LOG_ERR, "still bad: generator #%d: %s", g, err->text());
+                } else {
+                    LOG(LOG_INFO, "generator #%d recovered!", g);
+                    reachable[g] = true;  // mark generator as good again
+                }
+                break; // retry only one bad generator per cycle
+            }
+        }
+    }
+
+    // 3) Schedule next poll cycle
+    mPollTimer.executeOnce(
+        boost::bind(&KksDcmD::corePoller, this),
+        mPollInterval
+    );
+}
+
 
 
   void mainScriptDone(ScriptObjPtr aResult)
