@@ -120,7 +120,9 @@ namespace p44 {
 
     /// refresh the entire cache (all registers)
     ErrorPtr updateRegisterCache();
-
+    
+    /// keep alive refresh first register
+    ErrorPtr keepAlive();
 
     /// @name register model and underlying hardware access implementation
     /// @{
