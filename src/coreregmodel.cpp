@@ -279,6 +279,12 @@ ErrorPtr CoreRegModel::updateRegisterCache()
   return updateRegisterCacheFromHardware(0, maxReg());
 }
 
+ErrorPtr CoreRegModel::keepAlive()
+{
+  // simply update first register
+  return updateRegisterCacheFromHardware(0, 1);
+}
+
 
 ErrorPtr CoreRegModel::checkUserInput(RegIndex aRegIdx, int32_t aValue)
 {

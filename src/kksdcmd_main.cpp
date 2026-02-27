@@ -783,7 +783,8 @@ void corePoller()
         if (!reachable[generator]) continue;  // skip previously bad generators
 
         LOG(LOG_INFO, "\n=== polling GOOD generator #%d", generator);
-        ErrorPtr err = mCoreRegModels[generator]->updateRegisterCache();
+        //ErrorPtr err = mCoreRegModels[generator]->updateRegisterCache();
+        ErrorPtr err = mCoreRegModels[generator]->keepAlive();
 
         if (Error::notOK(err)) {
             LOG(LOG_ERR, "error polling generator #%d: %s", generator, err->text());
@@ -803,7 +804,9 @@ void corePoller()
                 int g = lastBadTried;
                 LOG(LOG_INFO, "\n=== retry BAD generator #%d", g);
 
-                ErrorPtr err = mCoreRegModels[g]->updateRegisterCache();
+                //ErrorPtr err = mCoreRegModels[g]->updateRegisterCache();
+                ErrorPtr err = mCoreRegModels[g]->keepAlive();
+                
                 if (Error::notOK(err)) {
                     LOG(LOG_ERR, "still bad: generator #%d: %s", g, err->text());
                 } else {
